@@ -521,40 +521,7 @@ function CompanyForm({ formData, setFormData, updateFocusDistribution, updateGui
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>City *</Label>
-          <Select 
-            value={formData.city} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, city: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select city" />
-            </SelectTrigger>
-            <SelectContent>
-              {CITIES.filter(c => c !== 'All Cities').map(city => (
-                <SelectItem key={city} value={city}>{city}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Industry *</Label>
-          <Select 
-            value={formData.industry} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select industry" />
-            </SelectTrigger>
-            <SelectContent>
-              {INDUSTRIES.map(industry => (
-                <SelectItem key={industry} value={industry}>{industry}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+     
 
       {/* JD */}
       <div className="space-y-2">

@@ -20,6 +20,8 @@ const {
   resendOTP
 } = require("../controllers/auth.controller");
 
+const { adminLogin } = require("../controllers/admin.controller");
+
 // Import auth middleware
 const { protect } = require("../middleware/auth.middleware");
 
@@ -43,6 +45,11 @@ const { protect } = require("../middleware/auth.middleware");
  */
 
 // ============ PUBLIC ROUTES ============
+
+// @route   POST /api/auth/admin/login
+// @desc    Login admin
+// @access  Public
+router.post("/admin/login", adminLogin);
 
 // @route   POST /api/auth/register
 // @desc    Register a new user
@@ -85,5 +92,7 @@ router.get("/me", protect, getMe);
 // @desc    Logout user
 // @access  Private
 router.post("/logout", protect, logout);
+
+
 
 module.exports = router;

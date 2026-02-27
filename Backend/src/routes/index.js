@@ -4,7 +4,7 @@
 // ================================
 // This file imports all route modules and exports a function
 // to mount them on the Express app with proper prefixes.
-
+const adminRoutes = require("./admin.routes");
 const authRoutes = require("./auth.routes");
 // TODO: Import more routes as we build them
 // const userRoutes = require("./user.routes");
@@ -29,6 +29,7 @@ const authRoutes = require("./auth.routes");
 const mountRoutes = (app) => {
   // Auth routes: /api/auth/*
   app.use("/api/auth", authRoutes);
+
   
   // TODO: Mount more routes as we build them
   // app.use("/api/users", userRoutes);
@@ -39,6 +40,8 @@ const mountRoutes = (app) => {
   // app.use("/api/calendar", calendarRoutes);
   // app.use("/api/reports", reportRoutes);
   // app.use("/api/jd", jdRoutes);
+
+  app.use("/api/admin", adminRoutes);
 };
 
 module.exports = mountRoutes;

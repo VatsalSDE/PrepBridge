@@ -1,38 +1,49 @@
-const mongoose = require('mongoose');
-const User = require('../models/User');
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
+const mongoose = require("mongoose");
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
-const ADMIN_EMAIL = 'vatsal@prepbridge.com'; // Change to your email
-const ADMIN_PASSWORD = 'Admin@123'; // Change this after first login
+const User = require("../models/User");
 
 async function seedAdmin() {
+  
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('Connected to MongoDB');
 
-    const existingAdmin = await User.findOne({ email: ADMIN_EMAIL });
-    
-    if (existingAdmin) {
-      console.log('Admin already exists:', ADMIN_EMAIL);
-      process.exit(0);
+    const email = process.env.ADMIN_EMAIL || "admin@prepbridge.com";
+    const password = process.env.ADMIN_PASSWORD || "Admin@123";
+
+    let admin = await User.findOne({ email });
+
+    if (!admin) {
+      admin = await User.create({
+        name: "Platform Admin",
+        email,
+        password,
+        role: "admin",
+        status: "active",
+        isVerified: true,
+      });
+      console.log("Admin created:", admin.email);
+    } else {
+      admin.name = admin.name || "Platform Admin";
+      admin.email = email;
+      admin.password = password;
+      admin.role = "admin";
+      admin.status = "active";
+      admin.isVerified = true;
+      await admin.save();
+      console.log("Admin updated:", admin.email);
     }
 
-    const admin = await User.create({
-      name: 'Vatsal (Admin)',
-      email: ADMIN_EMAIL,
-      password: ADMIN_PASSWORD,
-      role: 'admin',
-      isVerified: true
-    });
+    await User.updateMany(
+      { _id: { $ne: admin._id }, role: "admin" },
+      { $set: { role: "student", status: "active" } }
+    );
+    console.log("Single-admin policy enforced");
 
-    console.log('Admin created successfully!');
-    console.log('Email:', admin.email);
-    console.log('Password:', ADMIN_PASSWORD);
-    console.log('\n⚠️  Change password after first login!');
-    
     process.exit(0);
-  } catch (error) {
-    console.error('Error seeding admin:', error.message);
+  } catch (err) {
+    console.error("seedAdmin error:", err.message);
     process.exit(1);
   }
 }

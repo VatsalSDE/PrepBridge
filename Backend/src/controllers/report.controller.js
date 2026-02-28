@@ -100,10 +100,16 @@ exports.submitReflection = asyncHandler(async (req, res) => {
 
 // Get overall stats
 exports.getStats = asyncHandler(async (req, res) => {
+  const { days = 30 } = req.query;
+  
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - parseInt(days));
+
   const [streak, reflectionStats, activityStats] = await Promise.all([
     UserStreak.findOne({ userId: req.user.id }),
     Reflection.getStats(req.user.id),
-    ActivityLog.getAggregatedStats(req.user.id)
+    ActivityLog.getAggregatedStats(req.user.id, startDate, endDate)
   ]);
 
   const totalTasks = await Task.countDocuments({ userId: req.user.id });

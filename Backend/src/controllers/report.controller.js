@@ -4,14 +4,11 @@ const ActivityLog = require('../models/ActivityLog');
 const UserStreak = require('../models/UserStreak');
 const Task = require('../models/Task');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
+const { getWeekStart, getStartOfDay, getDaysAgo } = require('../utils/date.utils');
 
 // Get current week report
 exports.getWeeklyReport = asyncHandler(async (req, res) => {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-  weekStart.setHours(0, 0, 0, 0);
+  const weekStart = getWeekStart();
 
   let report = await WeeklyReport.findOne({
     userId: req.user.id,
@@ -59,8 +56,7 @@ exports.submitReflection = asyncHandler(async (req, res) => {
     throw new AppError('Mood is required', 400);
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getStartOfDay();
 
   const existingReflection = await Reflection.findOne({
     userId: req.user.id,
@@ -101,10 +97,8 @@ exports.submitReflection = asyncHandler(async (req, res) => {
 // Get overall stats
 exports.getStats = asyncHandler(async (req, res) => {
   const { days = 30 } = req.query;
-  
+  const startDate = getDaysAgo(parseInt(days));
   const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - parseInt(days));
 
   const [streak, reflectionStats, activityStats] = await Promise.all([
     UserStreak.findOne({ userId: req.user.id }),

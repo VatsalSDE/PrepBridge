@@ -1,18 +1,21 @@
 const Task = require('../models/Task');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
+const streakService = require('../services/streak.service');
+const badgeService = require('../services/badge.service');
+const { getStartOfDay, getNextDay, getDateRange } = require('../utils/date.utils');
 
 // Get today's tasks
 exports.getTodayTasks = asyncHandler(async (req, res) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start, end } = getDateRange();
 
   const tasks = await Task.find({
     userId: req.user.id,
-    date: { $gte: today, $lt: tomorrow }
-  }).sort({ priority: -1, createdAt: 1 });
+    date: { $gte: start, $lt: end }
+  }).sort({ createdAt: 1 });
+
+  // Sort by priority (high > medium > low)
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  tasks.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
   res.json({
     success: true,
@@ -24,17 +27,15 @@ exports.getTodayTasks = asyncHandler(async (req, res) => {
 // Get tasks by date
 exports.getTasksByDate = asyncHandler(async (req, res) => {
   const { date } = req.query;
-  
-  const targetDate = date ? new Date(date) : new Date();
-  targetDate.setHours(0, 0, 0, 0);
-  
-  const nextDay = new Date(targetDate);
-  nextDay.setDate(nextDay.getDate() + 1);
+  const { start, end } = getDateRange(date ? new Date(date) : new Date());
 
   const tasks = await Task.find({
     userId: req.user.id,
-    date: { $gte: targetDate, $lt: nextDay }
-  }).sort({ priority: -1, createdAt: 1 });
+    date: { $gte: start, $lt: end }
+  }).sort({ createdAt: 1 });
+
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  tasks.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
   res.json({
     success: true,
@@ -47,8 +48,7 @@ exports.getTasksByDate = asyncHandler(async (req, res) => {
 exports.createTask = asyncHandler(async (req, res) => {
   const { title, description, category, priority, estimatedTime, date } = req.body;
 
-  const taskDate = date ? new Date(date) : new Date();
-  taskDate.setHours(0, 0, 0, 0);
+  const taskDate = getStartOfDay(date ? new Date(date) : new Date());
 
   const task = await Task.create({
     userId: req.user.id,
@@ -89,9 +89,7 @@ exports.updateTask = asyncHandler(async (req, res) => {
   if (estimatedTime !== undefined) updateData.estimatedTime = estimatedTime;
   if (actualTime !== undefined) updateData.actualTime = actualTime;
   if (date !== undefined) {
-    const taskDate = new Date(date);
-    taskDate.setHours(0, 0, 0, 0);
-    updateData.date = taskDate;
+    updateData.date = getStartOfDay(new Date(date));
   }
 
   task = await Task.findByIdAndUpdate(id, updateData, {
@@ -122,6 +120,13 @@ exports.toggleTask = asyncHandler(async (req, res) => {
   task.completed = !task.completed;
   task.completedAt = task.completed ? new Date() : null;
   await task.save();
+
+  // Update streak and activity log when task is completed
+  if (task.completed) {
+    await streakService.updateStreakOnTaskComplete(req.user.id);
+    await streakService.updateActivityLog(req.user.id, task);
+    await badgeService.checkBadgeProgress(req.user.id);
+  }
 
   res.json({
     success: true,
@@ -155,12 +160,9 @@ exports.deleteTask = asyncHandler(async (req, res) => {
 exports.getTaskHistory = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20, category, completed } = req.query;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   const query = {
     userId: req.user.id,
-    date: { $lt: today }
+    date: { $lt: getStartOfDay() }
   };
 
   if (category) query.category = category;

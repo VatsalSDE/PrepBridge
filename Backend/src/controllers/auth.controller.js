@@ -8,6 +8,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { AppError, asyncHandler } = require("../middleware/errorHandler");
+const emailService = require("../services/email.service");
 
 /**
  * Helper: Generate JWT Token
@@ -91,8 +92,7 @@ const register = asyncHandler(async (req, res) => {
       const otp = existingUser.generateOTP();
       await existingUser.save();
       
-      // TODO: Send OTP via email service
-      console.log(`📧 OTP for ${email}: ${otp}`);  // Dev only
+      await emailService.sendOTP(email, otp, existingUser.name);
       
       return res.status(200).json({
         success: true,
@@ -116,9 +116,7 @@ const register = asyncHandler(async (req, res) => {
   const otp = user.generateOTP();
   await user.save();
   
-  // TODO: Send OTP via email service
-  // For now, logging to console (remove in production)
-  console.log(`📧 OTP for ${email}: ${otp}`);
+  await emailService.sendOTP(email, otp, name);
   
   res.status(201).json({
     success: true,

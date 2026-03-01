@@ -2,8 +2,8 @@ const CommunityPost = require('../models/CommunityPost');
 const PostUpvote = require('../models/PostUpvote');
 const PostComment = require('../models/PostComment');
 const PostBookmark = require('../models/PostBookmark');
-const AnonymousIdentity = require('../models/AnonymousIdentity');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
+const anonymousService = require('../services/anonymous.service');
 
 // Get posts (paginated)
 exports.getPosts = asyncHandler(async (req, res) => {
@@ -17,10 +17,11 @@ exports.getPosts = asyncHandler(async (req, res) => {
   });
 
   const postIds = result.posts.map(p => p._id);
+  const userIds = result.posts.map(p => p.userId);
   const [upvoteStatus, bookmarkStatus, identities] = await Promise.all([
     PostUpvote.getUpvoteStatus(postIds, req.user.id),
     PostBookmark.getBookmarkStatus(postIds, req.user.id),
-    Promise.all(result.posts.map(p => AnonymousIdentity.getIdentity(p.userId)))
+    anonymousService.getMultipleIdentities(userIds)
   ]);
 
   const posts = result.posts.map((post, i) => ({
@@ -42,7 +43,7 @@ exports.getPosts = asyncHandler(async (req, res) => {
 exports.createPost = asyncHandler(async (req, res) => {
   const { title, content, category, tags } = req.body;
 
-  const identity = await AnonymousIdentity.getIdentity(req.user.id);
+  const identity = await anonymousService.getIdentity(req.user.id);
 
   const post = await CommunityPost.create({
     userId: req.user.id,
@@ -72,14 +73,13 @@ exports.getPost = asyncHandler(async (req, res) => {
 
   const [comments, identity, isUpvoted, isBookmarked] = await Promise.all([
     PostComment.getComments(id),
-    AnonymousIdentity.getIdentity(post.userId),
+    anonymousService.getIdentity(post.userId),
     PostUpvote.hasUpvoted(id, req.user.id),
     PostBookmark.find({ postId: id, userId: req.user.id }).countDocuments()
   ]);
 
-  const commentIdentities = await Promise.all(
-    comments.map(c => AnonymousIdentity.getIdentity(c.userId))
-  );
+  const commentUserIds = comments.map(c => c.userId);
+  const commentIdentities = await anonymousService.getMultipleIdentities(commentUserIds);
 
   const formattedComments = comments.map((c, i) => ({
     ...c.toObject(),
@@ -201,7 +201,7 @@ exports.addComment = asyncHandler(async (req, res) => {
   }
 
   const comment = await PostComment.addComment(id, req.user.id, content);
-  const identity = await AnonymousIdentity.getIdentity(req.user.id);
+  const identity = await anonymousService.getIdentity(req.user.id);
 
   res.status(201).json({
     success: true,

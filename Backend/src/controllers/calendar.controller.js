@@ -1,6 +1,7 @@
 const ActivityLog = require('../models/ActivityLog');
 const Task = require('../models/Task');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { getDateRange } = require('../utils/date.utils');
 
 // Get heatmap data (1 year)
 exports.getHeatmap = asyncHandler(async (req, res) => {
@@ -19,28 +20,23 @@ exports.getHeatmap = asyncHandler(async (req, res) => {
 // Get day details
 exports.getDayDetails = asyncHandler(async (req, res) => {
   const { date } = req.params;
-
-  const targetDate = new Date(date);
-  targetDate.setHours(0, 0, 0, 0);
-
-  const nextDay = new Date(targetDate);
-  nextDay.setDate(nextDay.getDate() + 1);
+  const { start, end } = getDateRange(new Date(date));
 
   const [activityLog, tasks] = await Promise.all([
     ActivityLog.findOne({ 
       userId: req.user.id, 
-      activityDate: { $gte: targetDate, $lt: nextDay } 
+      activityDate: { $gte: start, $lt: end } 
     }),
     Task.find({ 
       userId: req.user.id, 
-      date: { $gte: targetDate, $lt: nextDay } 
+      date: { $gte: start, $lt: end } 
     }).sort({ priority: -1, createdAt: 1 })
   ]);
 
   res.json({
     success: true,
     data: {
-      date: targetDate,
+      date: start,
       activity: activityLog || {
         tasksCompleted: 0,
         tasksTotal: 0,

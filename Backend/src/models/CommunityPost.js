@@ -1,6 +1,32 @@
 // src/models/CommunityPost.js - Community posts with anonymous identity
 const mongoose = require("mongoose");
 
+const CATEGORY_ALIASES = {
+  "interview-tips": "interview",
+  interviewtips: "interview",
+  interviews: "interview",
+  experience: "interview",
+  resource: "core-cs",
+  doubt: "dsa"
+};
+
+const COMMUNITY_CATEGORIES = [
+  "dsa",
+  "core-cs",
+  "development",
+  "aptitude",
+  "interview",
+  "motivation",
+  "career",
+  "other"
+];
+
+const normalizeCategory = (value) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim().toLowerCase();
+  return CATEGORY_ALIASES[normalized] || normalized;
+};
+
 const communityPostSchema = new mongoose.Schema(
   {
     userId: { 
@@ -25,7 +51,8 @@ const communityPostSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ["doubt", "experience", "resource", "motivation", "other"],
+      enum: COMMUNITY_CATEGORIES,
+      set: normalizeCategory,
       default: "other"
     },
 
@@ -58,7 +85,7 @@ communityPostSchema.statics.getPosts = async function (options = {}) {
   } = options;
 
   const query = { isHidden: false };
-  if (category) query.category = category;
+  if (category) query.category = normalizeCategory(category);
 
   const sort = sortBy === "popular" 
     ? { upvoteCount: -1, createdAt: -1 } 

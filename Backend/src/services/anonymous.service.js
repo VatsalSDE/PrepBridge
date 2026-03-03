@@ -15,6 +15,11 @@ const getAnonymousIdentity = async (userId) => {
   return await AnonymousIdentity.getIdentity(userId);
 };
 
+// Controller-compatible alias
+const getIdentity = async (userId) => {
+  return await getAnonymousIdentity(userId);
+};
+
 // Get display name only
 const getDisplayName = async (userId) => {
   const identity = await getAnonymousIdentity(userId);
@@ -36,9 +41,29 @@ const getBulkIdentities = async (userIds) => {
   return identityMap;
 };
 
+// Controller-compatible method:
+// returns array of identity documents in same order as provided userIds
+const getMultipleIdentities = async (userIds = []) => {
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return [];
+  }
+
+  const uniqueIds = [...new Set(userIds.map(id => id.toString()))];
+  const identities = await Promise.all(uniqueIds.map(id => getIdentity(id)));
+
+  const identityMap = {};
+  identities.forEach((identity, index) => {
+    identityMap[uniqueIds[index]] = identity;
+  });
+
+  return userIds.map(id => identityMap[id.toString()]);
+};
+
 module.exports = {
   generateAnonymousIdentity,
   getAnonymousIdentity,
+  getIdentity,
   getDisplayName,
-  getBulkIdentities
+  getBulkIdentities,
+  getMultipleIdentities
 };

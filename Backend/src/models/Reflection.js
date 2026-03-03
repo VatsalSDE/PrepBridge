@@ -1,5 +1,47 @@
 const mongoose = require('mongoose');
 
+const MOOD_ALIASES = {
+  productive: 'productive',
+  excellent: 'great',
+  amazing: 'great',
+  happy: 'good',
+  neutral: 'okay',
+  low: 'bad',
+  tired: 'bad',
+  burnedout: 'terrible',
+  burnout: 'terrible',
+  '💪': 'productive',
+  '🔥': 'productive',
+  '😊': 'good',
+  '😐': 'okay',
+  '😔': 'bad',
+  '😴': 'terrible'
+};
+
+const normalizeMood = (value) => {
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim().toLowerCase();
+  return MOOD_ALIASES[normalized] || normalized;
+};
+
+const toStringList = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => (typeof item === 'string' ? item.trim() : String(item || '').trim()))
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  if (value == null) return [];
+
+  const asString = String(value).trim();
+  return asString ? [asString] : [];
+};
+
 const reflectionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -17,24 +59,29 @@ const reflectionSchema = new mongoose.Schema({
   },
   mood: {
     type: String,
-    enum: ['great', 'good', 'okay', 'bad', 'terrible'],
+    enum: ['great', 'good', 'okay', 'bad', 'terrible', 'productive'],
+    set: normalizeMood,
     required: true
   },
   accomplishments: {
-    type: String,
-    trim: true
+    type: [{ type: String, trim: true }],
+    default: [],
+    set: toStringList
   },
   challenges: {
-    type: String,
-    trim: true
+    type: [{ type: String, trim: true }],
+    default: [],
+    set: toStringList
   },
   learnings: {
-    type: String,
-    trim: true
+    type: [{ type: String, trim: true }],
+    default: [],
+    set: toStringList
   },
   tomorrowGoals: {
-    type: String,
-    trim: true
+    type: [{ type: String, trim: true }],
+    default: [],
+    set: toStringList
   },
   gratitude: {
     type: String,
@@ -43,12 +90,12 @@ const reflectionSchema = new mongoose.Schema({
   energyLevel: {
     type: Number,
     min: 1,
-    max: 5
+    max: 10
   },
   focusLevel: {
     type: Number,
     min: 1,
-    max: 5
+    max: 10
   },
   tags: [{
     type: String,
@@ -86,7 +133,7 @@ reflectionSchema.statics.getMoodTrend = async function(userId, days = 30) {
     date: { $gte: startDate }
   }).select('date mood energyLevel focusLevel').sort({ date: 1 });
   
-  const moodValues = { great: 5, good: 4, okay: 3, bad: 2, terrible: 1 };
+  const moodValues = { great: 5, productive: 5, good: 4, okay: 3, bad: 2, terrible: 1 };
   
   return reflections.map(r => ({
     date: r.date,
@@ -102,7 +149,7 @@ reflectionSchema.statics.getStats = async function(userId) {
   
   if (reflections.length === 0) return null;
   
-  const moodCounts = { great: 0, good: 0, okay: 0, bad: 0, terrible: 0 };
+  const moodCounts = { great: 0, productive: 0, good: 0, okay: 0, bad: 0, terrible: 0 };
   let totalEnergy = 0, totalFocus = 0, energyCount = 0, focusCount = 0;
   
   reflections.forEach(r => {

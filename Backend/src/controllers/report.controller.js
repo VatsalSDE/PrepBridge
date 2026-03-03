@@ -69,7 +69,7 @@ exports.submitReflection = asyncHandler(async (req, res) => {
     reflection = await Reflection.findByIdAndUpdate(
       existingReflection._id,
       { mood, accomplishments, challenges, learnings, tomorrowGoals, gratitude, energyLevel, focusLevel, tags },
-      { new: true }
+      { new: true, runValidators: true }
     );
   } else {
     reflection = await Reflection.create({

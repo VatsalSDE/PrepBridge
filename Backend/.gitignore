@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+/build
+/dist
+jspm_packages/
+
+# Environment files
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Coverage and build artifacts
+coverage/
+.nyc_output/
+build/Release
+lib-cov/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Optional npm cache
+.npm
+.node_repl_history
+
+# MongoDB specific
+*.db
+db/*.db

@@ -158,7 +158,7 @@ taskSchema.index({ userId: 1, completed: 1, date: 1 });
  * - Streak calculation (was it completed on time?)
  * - Productivity reports (which hours are most productive?)
  */
-taskSchema.pre("save", function (next) {
+taskSchema.pre("save", function () {
   // If task is being marked complete for the first time
   if (this.isModified("completed") && this.completed && !this.completedAt) {
     this.completedAt = new Date();
@@ -168,8 +168,6 @@ taskSchema.pre("save", function (next) {
   if (this.isModified("completed") && !this.completed) {
     this.completedAt = null;
   }
-  
-  next();
 });
 
 // ================================

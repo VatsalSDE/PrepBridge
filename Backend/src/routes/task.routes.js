@@ -19,7 +19,7 @@ router.route('/')
   .post(createTask);
 
 router.get('/history', getTaskHistory);
-router.get('/by-date', getTasksByDate);
+router.get('/date', getTasksByDate);
 
 router.route('/:id')
   .put(updateTask)

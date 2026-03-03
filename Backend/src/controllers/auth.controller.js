@@ -203,7 +203,7 @@ const login = asyncHandler(async (req, res) => {
     // Generic message to prevent email enumeration
     throw new AppError("Invalid email or password", 401);
   }
-  
+
   // ============ CHECK ACCOUNT STATUS ============
   if (!user.isVerified) {
     throw new AppError("Please verify your email first", 403);
@@ -215,7 +215,7 @@ const login = asyncHandler(async (req, res) => {
   
   // ============ VERIFY PASSWORD ============
   const isMatch = await user.comparePassword(password);
-  
+
   if (!isMatch) {
     throw new AppError("Invalid email or password", 401);
   }
@@ -350,6 +350,38 @@ const logout = asyncHandler(async (req, res) => {
 });
 
 // ================================
+// @route   PUT /api/auth/change-password
+// @desc    Change password (logged in user)
+// @access  Private
+// ================================
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    throw new AppError("Please provide current and new password", 400);
+  }
+
+  if (newPassword.length < 6) {
+    throw new AppError("New password must be at least 6 characters", 400);
+  }
+
+  const user = await User.findById(req.user.id).select("+password");
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    throw new AppError("Current password is incorrect", 401);
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Password changed successfully"
+  });
+});
+
+// ================================
 // @route   POST /api/auth/resend-otp
 // @desc    Resend OTP for verification
 // @access  Public
@@ -392,6 +424,7 @@ module.exports = {
   getMe,
   forgotPassword,
   resetPassword,
+  changePassword,
   logout,
   resendOTP
 };

@@ -1,0 +1,923 @@
+{
+  "info": {
+    "name": "PrepBridge - Vatsal (User Side)",
+    "_postman_id": "prepbridge-vatsal-user-apis",
+    "description": "All user-side APIs for PrepBridge. Test in this order: Auth → Tasks → Profile → Roadmap → Achievements → Calendar → Community → Reports → JD",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "description": "Test auth flow first: Register → Verify OTP → Login → Get Me",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vatsal Test\",\n  \"email\": \"vatsal@test.com\",\n  \"password\": \"test123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vatsal@test.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/verify-otp",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "verify-otp"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vatsal@test.com\",\n  \"password\": \"test123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('token', jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Me (Protected)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vatsal@test.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_TOKEN_FROM_TERMINAL_HERE\",\n  \"password\": \"newpass123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "reset-password"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"test123456\",\n  \"newPassword\": \"newtest123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/change-password",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "change-password"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Tasks",
+      "description": "CRUD operations for daily tasks. Completing task triggers streak update!",
+      "item": [
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Complete DSA Arrays\",\n  \"description\": \"Solve 5 array problems on LeetCode\",\n  \"category\": \"dsa\",\n  \"priority\": \"high\",\n  \"estimatedTime\": 60\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks"]
+            }
+          }
+        },
+        {
+          "name": "Get Today's Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks"]
+            }
+          }
+        },
+        {
+          "name": "Get Tasks by Date",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tasks/date?date=2026-03-01",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks", "date"],
+              "query": [{"key": "date", "value": "2026-03-01"}]
+            }
+          }
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Complete DSA Arrays - Updated\",\n  \"priority\": \"medium\",\n  \"actualTime\": 45\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/tasks/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks", ":id"],
+              "variable": [{"key": "id", "value": "TASK_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Toggle Task Complete",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tasks/:id/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks", ":id", "toggle"],
+              "variable": [{"key": "id", "value": "TASK_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tasks/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks", ":id"],
+              "variable": [{"key": "id", "value": "TASK_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Get Task History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/tasks/history?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks", "history"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"college\": \"IIT Delhi\",\n  \"branch\": \"Computer Science\",\n  \"year\": 3,\n  \"cgpa\": 8.5,\n  \"targetRole\": \"SDE\",\n  \"skills\": [\"JavaScript\", \"React\", \"Node.js\", \"MongoDB\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Upload Resume URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resumeUrl\": \"https://cloudinary.com/vatsal-resume.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/resume",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "resume"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Roadmap",
+      "item": [
+        {
+          "name": "Get Roadmap",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/roadmap",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap"]
+            }
+          }
+        },
+        {
+          "name": "Update Foundation (DSA)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectionName\": \"Arrays\",\n  \"topicName\": \"Two Pointers\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/foundations/dsa",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "foundations", "dsa"]
+            }
+          }
+        },
+        {
+          "name": "Update Foundation (CoreCS)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sectionName\": \"Operating Systems\",\n  \"topicName\": \"Process Management\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/foundations/coreCS",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "foundations", "coreCS"]
+            }
+          }
+        },
+        {
+          "name": "Update Domain Skill",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skillName\": \"React.js\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/roadmap/domains/frontend",
+              "host": ["{{base_url}}"],
+              "path": ["api", "roadmap", "domains", "frontend"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Achievements",
+      "item": [
+        {
+          "name": "Get Badges",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/achievements",
+              "host": ["{{base_url}}"],
+              "path": ["api", "achievements"]
+            }
+          }
+        },
+        {
+          "name": "Get Streaks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/achievements/streaks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "achievements", "streaks"]
+            }
+          }
+        },
+        {
+          "name": "Get Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/achievements/leaderboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "achievements", "leaderboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Calendar",
+      "item": [
+        {
+          "name": "Get Heatmap (1 Year)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/calendar/heatmap",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calendar", "heatmap"]
+            }
+          }
+        },
+        {
+          "name": "Get Day Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/calendar/day/2026-03-01",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calendar", "day", "2026-03-01"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Community",
+      "description": "Anonymous community - all posts show 'Anonymous Panda #1234' style names",
+      "item": [
+        {
+          "name": "Get Posts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/posts?page=1&limit=10&sortBy=recent",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "10"},
+                {"key": "sortBy", "value": "recent"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"How to prepare for Google SDE interview?\",\n  \"content\": \"I have 3 months left and want to crack Google. Any tips from those who got in?\",\n  \"category\": \"interview-tips\",\n  \"tags\": [\"google\", \"interviews\", \"dsa\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/community/posts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts"]
+            }
+          }
+        },
+        {
+          "name": "Get Single Post",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Update Post",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated: Google SDE Interview Prep\",\n  \"content\": \"Updated content here...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Delete Post",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Toggle Upvote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id/upvote",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id", "upvote"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Toggle Bookmark",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id/bookmark",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id", "bookmark"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Add Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Focus on DSA first, then system design. Practice on LeetCode daily!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id/comments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id", "comments"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/comments/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "comments", ":id"],
+              "variable": [{"key": "id", "value": "COMMENT_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Report Post",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Inappropriate content\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/community/posts/:id/report",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "posts", ":id", "report"],
+              "variable": [{"key": "id", "value": "POST_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Get My Posts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/my-posts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "my-posts"]
+            }
+          }
+        },
+        {
+          "name": "Get My Bookmarks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/community/bookmarks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "community", "bookmarks"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Reports",
+      "item": [
+        {
+          "name": "Get Weekly Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/weekly",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "weekly"]
+            }
+          }
+        },
+        {
+          "name": "Get Report History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/history?limit=12",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "history"],
+              "query": [{"key": "limit", "value": "12"}]
+            }
+          }
+        },
+        {
+          "name": "Submit Reflection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"daily\",\n  \"mood\": \"productive\",\n  \"accomplishments\": [\"Completed 5 DSA problems\", \"Finished React tutorial\"],\n  \"challenges\": [\"Struggled with DP problems\"],\n  \"learnings\": [\"Learned Kadane's algorithm\"],\n  \"tomorrowGoals\": [\"Practice more DP\", \"Start system design\"],\n  \"energyLevel\": 8,\n  \"focusLevel\": 7\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reports/reflection",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "reflection"]
+            }
+          }
+        },
+        {
+          "name": "Get Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/stats?days=30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "stats"],
+              "query": [{"key": "days", "value": "30"}]
+            }
+          }
+        },
+        {
+          "name": "Get Reflections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/reflections?type=daily&limit=30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "reflections"],
+              "query": [
+                {"key": "type", "value": "daily"},
+                {"key": "limit", "value": "30"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. JD Matching",
+      "description": "JD Analysis - ML integration pending. Currently saves analysis with empty arrays.",
+      "item": [
+        {
+          "name": "Analyze JD",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"Software Development Engineer\",\n  \"company\": \"Google\",\n  \"jdText\": \"We are looking for a Software Development Engineer with experience in Java, Python, distributed systems, and cloud technologies. Must have strong DSA skills and problem-solving abilities.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/jd/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jd", "analyze"]
+            }
+          }
+        },
+        {
+          "name": "Get Analysis History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jd/history?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jd", "history"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Single Analysis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jd/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jd", ":id"],
+              "variable": [{"key": "id", "value": "ANALYSIS_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Toggle Save Analysis",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jd/:id/save",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jd", ":id", "save"],
+              "variable": [{"key": "id", "value": "ANALYSIS_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Delete Analysis",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jd/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jd", ":id"],
+              "variable": [{"key": "id", "value": "ANALYSIS_ID_HERE"}]
+            }
+          }
+        },
+        {
+          "name": "Get Skill Gaps",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/jd/skill-gaps",
+              "host": ["{{base_url}}"],
+              "path": ["api", "jd", "skill-gaps"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

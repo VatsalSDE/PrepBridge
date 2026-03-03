@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { 
-  ArrowRight, 
-  CheckCircle2, 
-  Flame, 
-  Target, 
+import {
+  ArrowRight,
+  CheckCircle2,
+  Flame,
+  Target,
   Calendar,
   BarChart3,
   Users,
@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import CodeRainBackground from '@/components/landing/CodeRainBackground';
+import HeroAnimation from '@/components/landing/HeroAnimation';
+import CustomCursor from '@/components/landing/CustomCursor';
 
 const features = [
   {
@@ -169,7 +172,8 @@ function FAQItem({ question, answer }) {
 }
 const LandingPage = () => {
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="min-h-screen bg-background overflow-hidden landing-custom-cursor">
+      <CustomCursor />
       {/* Navigation */}
       <motion.nav
         initial={{ y: -20, opacity: 0 }}
@@ -203,7 +207,13 @@ const LandingPage = () => {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 overflow-hidden">
-        {/* Background Effects */}
+        {/* Animated Code Rain Background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <CodeRainBackground />
+          <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />
+        </div>
+
+        {/* Background Glow Effects */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-20 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px]" />
           <div className="absolute top-40 right-1/4 w-80 h-80 bg-accent/20 rounded-full blur-[100px]" />
@@ -211,83 +221,91 @@ const LandingPage = () => {
         </div>
 
         <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
-            >
-              <Flame className="w-4 h-4 text-streak" />
-              <span className="text-sm font-medium text-foreground">Join 10,000+ students preparing smarter</span>
-            </motion.div>
+          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+            {/* Left Side - Text Content */}
+            <div className="flex-1 text-center md:text-left">
+              {/* Badge */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-8"
+              >
+                <Flame className="w-4 h-4 text-streak" />
+                <span className="text-sm font-medium text-foreground">Join 10,000+ students preparing smarter</span>
+              </motion.div>
 
-            {/* Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-6"
-            >
-              <span className="text-foreground">Stop Planning.</span>
-              <br />
-              <span className="text-gradient-hero">Start Executing.</span>
-            </motion.h1>
+              {/* Headline */}
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-6"
+              >
+                <span className="text-foreground">Stop Planning.</span>
+                <br />
+                <span className="text-gradient-hero">Start Executing.</span>
+              </motion.h1>
 
-            {/* Subheadline */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
-            >
-              The only placement preparation platform that focuses on{' '}
-              <span className="text-foreground font-medium">execution discipline</span>, not just content. 
-              Build consistent habits and ace your campus placements.
-            </motion.p>
+              {/* Subheadline */}
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-lg md:text-xl text-muted-foreground max-w-2xl md:max-w-lg mb-10"
+              >
+                The only placement preparation platform that focuses on{' '}
+                <span className="text-foreground font-medium">execution discipline</span>, not just content.
+                Build consistent habits and ace your campus placements.
+              </motion.p>
 
-            {/* CTA Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
-            >
-              <Link to="/signup">
-                <Button variant="hero" size="xl" className="w-full sm:w-auto group">
-                  Start Free Today
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link to="/login">
-                <Button variant="heroOutline" size="xl" className="w-full sm:w-auto">
-                  I have an account
-                </Button>
-              </Link>
-            </motion.div>
+              {/* CTA Buttons */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex flex-col sm:flex-row items-center md:items-start gap-4 mb-12"
+              >
+                <Link to="/signup">
+                  <Button variant="hero" size="xl" className="w-full sm:w-auto group">
+                    Start Free Today
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+                <Link to="/login">
+                  <Button variant="heroOutline" size="xl" className="w-full sm:w-auto">
+                    I have an account
+                  </Button>
+                </Link>
+              </motion.div>
+            </div>
 
-            {/* Social Proof */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="flex flex-wrap items-center justify-center gap-8 md:gap-12"
-            >
-              {stats.map((stat, index) => (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + index * 0.1 }}
-                  className="text-center"
-                >
-                  <p className="text-3xl md:text-4xl font-bold text-gradient-primary">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                </motion.div>
-              ))}
-            </motion.div>
+            {/* Right Side - Hero Animation */}
+            <div className="flex-1">
+              <HeroAnimation />
+            </div>
           </div>
+
+          {/* Social Proof - Full width below */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="flex flex-wrap items-center justify-center gap-8 md:gap-12 mt-16"
+          >
+            {stats.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 + index * 0.1 }}
+                className="text-center"
+              >
+                <p className="text-3xl md:text-4xl font-bold text-gradient-primary">{stat.value}</p>
+                <p className="text-sm text-muted-foreground">{stat.label}</p>
+              </motion.div>
+            ))}
+          </motion.div>
         </div>
       </section>
 
@@ -304,7 +322,7 @@ const LandingPage = () => {
               Everything You Need to <span className="text-gradient-primary">Succeed</span>
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              PrepBridge combines planning, execution tracking, and community support 
+              PrepBridge combines planning, execution tracking, and community support
               into one powerful platform designed for Tier-3 college students.
             </p>
           </motion.div>
@@ -370,7 +388,7 @@ const LandingPage = () => {
                   </div>
                   <h3 className="text-xl font-semibold text-foreground mb-2">{item.title}</h3>
                   <p className="text-muted-foreground text-sm">{item.description}</p>
-                  
+
                   {index < 2 && (
                     <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-primary/50 to-transparent" />
                   )}
@@ -394,7 +412,7 @@ const LandingPage = () => {
               Loved by <span className="text-gradient-primary">10,000+ Students</span>
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Don't just take our word for it. Here's what students from tier-3 colleges 
+              Don't just take our word for it. Here's what students from tier-3 colleges
               say about their PrepBridge journey.
             </p>
           </motion.div>
@@ -504,13 +522,13 @@ const LandingPage = () => {
               Ready to Transform Your<br />Placement Preparation?
             </h2>
             <p className="text-lg text-white/80 max-w-xl mx-auto mb-10">
-              Join thousands of students who are building consistent habits 
+              Join thousands of students who are building consistent habits
               and acing their campus placements with PrepBridge.
             </p>
             <Link to="/signup">
-              <Button 
-                variant="glass" 
-                size="xl" 
+              <Button
+                variant="glass"
+                size="xl"
                 className="bg-white text-primary hover:bg-white/90 font-semibold"
               >
                 Get Started for Free
@@ -524,14 +542,14 @@ const LandingPage = () => {
       {/* Footer */}
       <footer className="py-12 bg-card border-t border-border">
         <div className="container mx-auto px-4">
-           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             {/* <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
                 <span className="text-white font-bold">P</span>
               </div>
               <span className="font-bold text-foreground">PrepBridge</span>
             </div>  */}
-            
+
             <p className="text-sm text-muted-foreground ">
               © 2024 PrepBridge. Built for students, by students.
             </p>

@@ -159,6 +159,7 @@
 @layer base {
   * {
     @apply border-border;
+    transition: background-color 300ms ease, color 200ms ease, border-color 300ms ease, box-shadow 300ms ease;
   }
 
   html {
@@ -332,6 +333,51 @@
 
   .hover-glow:hover {
     box-shadow: var(--shadow-glow);
+  }
+
+  /* Button micro-interaction */
+  .btn-hover {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .btn-hover:hover {
+    transform: scale(1.03);
+  }
+
+  .btn-hover:active {
+    transform: scale(0.98);
+  }
+
+  /* Card hover with lift + shadow transition */
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Dark mode card glow */
+  .dark .card-glow {
+    box-shadow: 0 0 20px hsla(234, 89%, 65%, 0.08), 0 0 40px hsla(234, 89%, 65%, 0.04);
+    border-color: hsla(234, 89%, 65%, 0.15);
+  }
+
+  /* Light mode soft shadow */
+  .card-soft {
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Productivity glow effect */
+  .productivity-glow {
+    box-shadow: 0 0 25px hsla(142, 76%, 45%, 0.2), 0 0 50px hsla(142, 76%, 45%, 0.08);
+    border-color: hsla(142, 76%, 45%, 0.3);
+  }
+
+  .dark .productivity-glow {
+    box-shadow: 0 0 30px hsla(142, 76%, 50%, 0.15), 0 0 60px hsla(142, 76%, 50%, 0.06);
+    border-color: hsla(142, 76%, 50%, 0.25);
   }
 }
 

@@ -667,6 +667,120 @@ refactor: Restructure auth controller
 
 ---
 
+# 🤖 ML SERVICE INTEGRATION (Phase 7 - Both)
+
+## Overview
+
+A separate Python FastAPI service handles all AI/ML features:
+
+| Feature | Owner | Input | Output |
+|---------|-------|-------|--------|
+| JD Skill Extraction | Vatsal | JD text | Skills list |
+| Resume-JD Matching | Vatsal | JD + Resume | Match score + gaps |
+| Interview Guide Gen | Raj | JD text | Interview pattern + focus |
+
+## ML Service Architecture
+
+```
+ml-service/
+├── main.py              # FastAPI app (port 8000)
+├── requirements.txt     
+├── .env                 # OPENAI_API_KEY
+├── routers/
+│   ├── skills.py        # /extract-skills, /match-skills
+│   └── interview.py     # /generate-interview-guide
+└── services/
+    ├── skill_extractor.py
+    ├── skill_matcher.py
+    └── interview_generator.py
+```
+
+## API Endpoints
+
+### For User Side (Vatsal uses):
+```
+POST /api/ml/extract-skills
+├── Input: { "jdText": "..." }
+└── Output: { "extractedSkills": [...], "experience": "2-4 years", "role": "..." }
+
+POST /api/ml/match-skills  
+├── Input: { "jdText": "...", "resumeText": "...", "userSkills": [...] }
+└── Output: { "matchedSkills": [...], "missingSkills": [...], "matchScore": 75, "recommendations": [...] }
+```
+
+### For Admin Side (Raj uses):
+```
+POST /api/ml/generate-interview-guide
+├── Input: { "jdText": "...", "company": "Google" }
+└── Output: {
+│     "interviewPattern": "3 rounds: OA + Tech + HR",
+│     "focusDistribution": { "dsa": 40, "coreCS": 20, "systemDesign": 25, "behavioral": 15 },
+│     "keyTopics": { "dsa": [...], "coreCS": [...] },
+│     "commonQuestions": [...]
+│   }
+```
+
+## Technology: OpenAI GPT-3.5 (Recommended)
+
+**Why OpenAI for MVP:**
+- Fast implementation (1-2 days)
+- Best quality results
+- ~$10-20/month cost for small scale
+
+**Setup:**
+```bash
+cd ml-service
+pip install fastapi uvicorn openai python-dotenv
+echo "OPENAI_API_KEY=your-key" > .env
+uvicorn main:app --reload --port 8000
+```
+
+## Node.js Integration
+
+### Backend/src/services/ml.service.js
+```javascript
+const axios = require('axios');
+const ML_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+
+module.exports = {
+  async extractSkills(jdText) {
+    const { data } = await axios.post(`${ML_URL}/api/ml/extract-skills`, { jdText });
+    return data;
+  },
+  
+  async matchSkills(jdText, resumeText, userSkills = []) {
+    const { data } = await axios.post(`${ML_URL}/api/ml/match-skills`, { jdText, resumeText, userSkills });
+    return data;
+  },
+  
+  async generateInterviewGuide(jdText, company) {
+    const { data } = await axios.post(`${ML_URL}/api/ml/generate-interview-guide`, { jdText, company });
+    return data;
+  }
+};
+```
+
+## Timeline
+
+| Day | Task | Owner |
+|-----|------|-------|
+| 17 | Setup FastAPI + OpenAI | Together |
+| 18 | Skill extraction endpoint | Vatsal |
+| 18 | Interview guide endpoint | Raj |
+| 19 | Connect to Node.js backend | Both |
+| 20 | Test end-to-end | Both |
+
+## Important Notes
+
+1. **API Key Security:** Never commit `.env` to git
+2. **Error Handling:** Always have fallback if ML fails
+3. **Caching:** Cache results for same JD text (saves API cost)
+4. **Rate Limits:** OpenAI has rate limits, add retry logic
+
+**Full ML Implementation Details:** See `ML_IMPLEMENTATION_GUIDE.md`
+
+---
+
 # 🚀 LET'S START!
 
 **Day 1 First Task:**

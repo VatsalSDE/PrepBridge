@@ -16,6 +16,7 @@ const {
   getMe,
   forgotPassword,
   resetPassword,
+  changePassword,
   logout,
   resendOTP
 } = require("../controllers/auth.controller");
@@ -93,6 +94,9 @@ router.get("/me", protect, getMe);
 // @access  Private
 router.post("/logout", protect, logout);
 
-
+// @route   PUT /api/auth/change-password
+// @desc    Change password (logged in)
+// @access  Private
+router.put("/change-password", protect, changePassword);
 
 module.exports = router;

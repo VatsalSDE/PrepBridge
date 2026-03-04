@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
+import {
   BarChart3, TrendingUp, TrendingDown, Calendar, Clock, Target,
   CheckCircle2, XCircle, PieChart, ArrowUp, ArrowDown, FileText,
   Lightbulb, ChevronRight
@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { containerVariants, itemVariants } from '@/utils/animations';
 import { toast } from 'sonner';
-import { 
+import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart as RechartsPie, Pie, Cell, BarChart, Bar, Legend
 } from 'recharts';
@@ -125,9 +125,8 @@ function StatCard({ title, value, change, changeType, icon: Icon, color }) {
               <p className="text-sm text-muted-foreground">{title}</p>
               <p className="text-3xl font-bold mt-1">{value}</p>
               {change && (
-                <div className={`flex items-center gap-1 mt-2 text-sm ${
-                  changeType === 'up' ? 'text-success' : 'text-destructive'
-                }`}>
+                <div className={`flex items-center gap-1 mt-2 text-sm ${changeType === 'up' ? 'text-success' : 'text-destructive'
+                  }`}>
                   {changeType === 'up' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
                   {change} from last week
                 </div>
@@ -177,21 +176,21 @@ function WeeklyReflectionForm() {
       <CardContent className="space-y-4">
         <div>
           <Label>What went well this week?</Label>
-          <Textarea placeholder="Share your wins and achievements..." className="mt-2" value={formData.wentWell} onChange={(e) => setFormData({...formData, wentWell: e.target.value})} />
+          <Textarea placeholder="Share your wins and achievements..." className="mt-2" value={formData.wentWell} onChange={(e) => setFormData({ ...formData, wentWell: e.target.value })} />
         </div>
         <div>
           <Label>What challenges did you face?</Label>
-          <Textarea placeholder="What topics or areas were difficult..." className="mt-2" value={formData.challenges} onChange={(e) => setFormData({...formData, challenges: e.target.value})} />
+          <Textarea placeholder="What topics or areas were difficult..." className="mt-2" value={formData.challenges} onChange={(e) => setFormData({ ...formData, challenges: e.target.value })} />
         </div>
         <div>
           <Label>What will you improve next week?</Label>
-          <Textarea placeholder="Your action plan for improvement..." className="mt-2" value={formData.improvements} onChange={(e) => setFormData({...formData, improvements: e.target.value})} />
+          <Textarea placeholder="Your action plan for improvement..." className="mt-2" value={formData.improvements} onChange={(e) => setFormData({ ...formData, improvements: e.target.value })} />
         </div>
         <div>
           <Label>How are you feeling? (Select emoji)</Label>
           <div className="flex gap-3 mt-2">
             {['😊', '😐', '😔', '💪', '🔥', '😴'].map(emoji => (
-              <motion.button 
+              <motion.button
                 key={emoji}
                 whileHover={{ scale: 1.2 }}
                 whileTap={{ scale: 0.9 }}
@@ -215,7 +214,7 @@ export default function ReportsPage() {
   const [timeRange, setTimeRange] = useState('weekly');
 
   const getChartData = () => {
-    switch(timeRange) {
+    switch (timeRange) {
       case '3months':
         return THREE_MONTHS_DATA;
       case '6months':
@@ -228,7 +227,7 @@ export default function ReportsPage() {
   };
 
   const getChartTitle = () => {
-    switch(timeRange) {
+    switch (timeRange) {
       case '3months':
         return 'Productivity Trend (Last 3 Months)';
       case '6months':
@@ -298,9 +297,9 @@ export default function ReportsPage() {
           <motion.div variants={itemVariants}>
             <Card className="glass-card">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{getChartTitle()}</CardTitle>
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <CardTitle className="text-base sm:text-lg">{getChartTitle()}</CardTitle>
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <Button
                       size="sm"
                       variant={timeRange === 'weekly' ? 'default' : 'outline'}
@@ -337,7 +336,7 @@ export default function ReportsPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={getChartData()}>
                       <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis 
+                      <XAxis
                         dataKey={timeRange === '12months' ? 'month' : timeRange === 'weekly' ? 'day' : 'label'}
                         tickFormatter={(value, index) => {
                           const data = getChartData();
@@ -353,17 +352,17 @@ export default function ReportsPage() {
                         }}
                       />
                       <YAxis />
-                      <Tooltip 
-                        contentStyle={{ 
+                      <Tooltip
+                        contentStyle={{
                           backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px'
                         }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="productivity" 
-                        stroke="hsl(var(--primary))" 
+                      <Line
+                        type="monotone"
+                        dataKey="productivity"
+                        stroke="hsl(var(--primary))"
                         strokeWidth={3}
                         dot={{ fill: 'hsl(var(--primary))' }}
                       />
@@ -387,15 +386,15 @@ export default function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                       <XAxis dataKey="week" />
                       <YAxis />
-                      <Tooltip 
-                        contentStyle={{ 
+                      <Tooltip
+                        contentStyle={{
                           backgroundColor: 'hsl(var(--card))',
                           border: '1px solid hsl(var(--border))',
                           borderRadius: '8px'
                         }}
                       />
-                      <Bar 
-                        dataKey="productivity" 
+                      <Bar
+                        dataKey="productivity"
                         fill="hsl(var(--primary))"
                         radius={[4, 4, 0, 0]}
                       />

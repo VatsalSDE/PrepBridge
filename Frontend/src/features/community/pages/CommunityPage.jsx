@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Users, MessageSquare, ThumbsUp, Bookmark, Flag, Send, Filter,
   Plus, Search, Clock, TrendingUp, ChevronDown, Shield, X, Trash2
 } from 'lucide-react';
@@ -40,7 +40,7 @@ const MOCK_POSTS = [
     content: "I've been struggling with DP for weeks now. I understand the basic concepts but when it comes to solving problems, I freeze. Any tips on how to build intuition for DP? What patterns should I focus on first?",
     upvotes: 24,
     upvotedBy: [],
-    comments: [{id: 1, author: 'Anonymous Fox #3421', avatar: '🦊', text: 'Start with classics like Fibonacci and Climbing Stairs'}],
+    comments: [{ id: 1, author: 'Anonymous Fox #3421', avatar: '🦊', text: 'Start with classics like Fibonacci and Climbing Stairs' }],
     timestamp: Date.now() - 2 * 60 * 60 * 1000,
     isBookmarked: false,
     isEditable: true
@@ -94,7 +94,7 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
   const [newComment, setNewComment] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ title: post.title, content: post.content });
-  
+
   const hasUpvoted = post.upvotedBy?.includes(currentUserId);
 
   const handleSaveEdit = () => {
@@ -120,7 +120,7 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
     const diff = now - timestamp;
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
+
     if (hours < 1) return 'just now';
     if (hours < 24) return `${hours} hours ago`;
     return `${days} days ago`;
@@ -131,24 +131,24 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
       <Card className="glass-card hover:shadow-lg transition-shadow">
         <CardContent className="p-5">
           {/* Header */}
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10">
+              <Avatar className="w-10 h-10 shrink-0">
                 <AvatarFallback className="text-lg">{post.avatar}</AvatarFallback>
               </Avatar>
-              <div>
-                <p className="font-medium text-sm">{post.anonymous_id}</p>
+              <div className="min-w-0">
+                <p className="font-medium text-sm truncate">{post.anonymous_id}</p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3" />
+                  <Clock className="w-3 h-3 shrink-0" />
                   {getTimeAgo(post.timestamp)}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-13 sm:ml-0">
               <Badge variant="secondary">{CATEGORIES.find(c => c.id === post.category)?.label}</Badge>
               {post.isEditable && !isEditing && (
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={() => setIsEditing(true)}
                 >
@@ -161,14 +161,14 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
           {/* Content */}
           {isEditing ? (
             <div className="space-y-3 mb-4">
-              <Input 
+              <Input
                 value={editData.title}
-                onChange={(e) => setEditData({...editData, title: e.target.value})}
+                onChange={(e) => setEditData({ ...editData, title: e.target.value })}
                 placeholder="Post title"
               />
-              <Textarea 
+              <Textarea
                 value={editData.content}
-                onChange={(e) => setEditData({...editData, content: e.target.value})}
+                onChange={(e) => setEditData({ ...editData, content: e.target.value })}
                 placeholder="Post content"
               />
               <div className="flex gap-2 justify-end">
@@ -185,38 +185,39 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
 
           {/* Actions */}
           {!isEditing && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-4">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onUpvote(post.id)}
-                  className="gap-2"
+                  className="gap-1.5"
                 >
                   <ThumbsUp className={`w-4 h-4 ${hasUpvoted ? 'fill-primary text-primary' : ''}`} />
                   <span>{post.upvotes}</span>
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setShowComments(!showComments)}
-                  className="gap-2"
+                  className="gap-1.5"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>{post.comments.length} comments</span>
+                  <span className="hidden xs:inline">{post.comments.length} comments</span>
+                  <span className="xs:hidden">{post.comments.length}</span>
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
                   size="icon"
                   onClick={() => onBookmark(post.id)}
                   title="Bookmark"
                 >
                   <Bookmark className={`w-4 h-4 ${post.isBookmarked ? 'fill-primary text-primary' : ''}`} />
                 </Button>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="icon"
                   onClick={() => {
                     onReport(post.id);
@@ -227,8 +228,8 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
                   <Flag className="w-4 h-4" />
                 </Button>
                 {post.isEditable && (
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
                     onClick={() => onDelete(post.id)}
                     title="Delete"
@@ -276,8 +277,8 @@ function PostCard({ post, onUpvote, onBookmark, onDelete, onEdit, onReport, onAd
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <Input 
-                    placeholder="Write a comment..." 
+                  <Input
+                    placeholder="Write a comment..."
                     className="flex-1"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
@@ -348,16 +349,16 @@ function CreatePostDialog({ onPostCreate }) {
               </SelectContent>
             </Select>
           </div>
-          <Input 
-            placeholder="Post title..." 
+          <Input
+            placeholder="Post title..."
             value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           />
-          <Textarea 
-            placeholder="Share your question, experience, or thoughts..." 
+          <Textarea
+            placeholder="Share your question, experience, or thoughts..."
             className="min-h-[120px]"
             value={formData.content}
-            onChange={(e) => setFormData({...formData, content: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
           />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -401,7 +402,7 @@ export default function CommunityPage() {
   };
 
   const handleBookmark = (postId) => {
-    setPosts(posts.map(p => 
+    setPosts(posts.map(p =>
       p.id === postId ? { ...p, isBookmarked: !p.isBookmarked } : p
     ));
   };
@@ -412,20 +413,20 @@ export default function CommunityPage() {
   };
 
   const handleEditPost = (postId, editData) => {
-    setPosts(posts.map(p => 
+    setPosts(posts.map(p =>
       p.id === postId ? { ...p, title: editData.title, content: editData.content } : p
     ));
   };
 
   const handleReportPost = (postId) => {
     // Increment report count or mark as reported
-    setPosts(posts.map(p => 
+    setPosts(posts.map(p =>
       p.id === postId ? { ...p, isReported: true } : p
     ));
   };
 
   const handleAddComment = (postId, commentText) => {
-    setPosts(posts.map(p => 
+    setPosts(posts.map(p =>
       p.id === postId ? {
         ...p,
         comments: [...p.comments, {
@@ -469,7 +470,7 @@ export default function CommunityPage() {
   const filteredPosts = posts.filter(post => {
     const matchesCategory = activeCategory === 'all' || post.category === activeCategory;
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          post.content.toLowerCase().includes(searchQuery.toLowerCase());
+      post.content.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSaved = sortBy === 'saved' ? post.isBookmarked : true;
     return matchesCategory && matchesSearch && matchesSaved;
   });
@@ -493,11 +494,11 @@ export default function CommunityPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <Users className="w-8 h-8 text-primary" />
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
+            <Users className="w-7 h-7 md:w-8 md:h-8 text-primary shrink-0" />
             Anonymous Community
           </h1>
-          <p className="text-muted-foreground mt-1">Ask doubts, share experiences, help others - all anonymously</p>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Ask doubts, share experiences, help others - all anonymously</p>
         </div>
         <CreatePostDialog onPostCreate={handlePostCreate} />
       </div>
@@ -506,18 +507,18 @@ export default function CommunityPage() {
       <motion.div variants={itemVariants}>
         <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-primary/10">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-primary/10 shrink-0">
                 <Shield className="w-5 h-5 text-primary" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm font-medium">
+                  <Badge variant="secondary" className="text-xs w-fit">
                     <Shield className="w-3 h-3 mr-1" />
                     Moderated by Admin
                   </Badge>
-                  All posts are reviewed to ensure a safe and helpful community
-                </p>
+                  <span className="text-xs sm:text-sm">All posts are reviewed to ensure a safe and helpful community</span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -552,11 +553,10 @@ export default function CommunityPage() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    activeCategory === cat.id 
-                      ? 'bg-primary/10 text-primary font-medium' 
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${activeCategory === cat.id
+                      ? 'bg-primary/10 text-primary font-medium'
                       : 'hover:bg-muted/50'
-                  }`}
+                    }`}
                 >
                   {cat.label}
                 </button>
@@ -572,8 +572,8 @@ export default function CommunityPage() {
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search posts..." 
+            <Input
+              placeholder="Search posts..."
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -582,25 +582,25 @@ export default function CommunityPage() {
 
           {/* Sort Options */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Button 
+            <Button
               variant={sortBy === 'all' ? 'default' : 'ghost'}
-              size="sm" 
+              size="sm"
               className="gap-1"
               onClick={() => setSortBy('all')}
             >
               All Posts
             </Button>
-            <Button 
+            <Button
               variant={sortBy === 'recent' ? 'default' : 'ghost'}
-              size="sm" 
+              size="sm"
               className="gap-1"
               onClick={() => setSortBy('recent')}
             >
               <Clock className="w-4 h-4" /> Recent
             </Button>
-            <Button 
+            <Button
               variant={sortBy === 'saved' ? 'default' : 'ghost'}
-              size="sm" 
+              size="sm"
               className="gap-1"
               onClick={() => setSortBy('saved')}
             >
@@ -611,9 +611,9 @@ export default function CommunityPage() {
           {/* Posts */}
           <motion.div variants={containerVariants} className="space-y-4">
             {sortedPosts.map(post => (
-              <PostCard 
-                key={post.id} 
-                post={post} 
+              <PostCard
+                key={post.id}
+                post={post}
                 onUpvote={handleUpvote}
                 onBookmark={handleBookmark}
                 onDelete={handleDeletePost}

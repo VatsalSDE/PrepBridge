@@ -92,11 +92,10 @@ function DayTasksPopup({ date, tasks, onClose }) {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    className={`p-3 rounded-lg border transition-all ${
-                      task.completed 
-                        ? 'bg-success/5 border-success/20' 
+                    className={`p-3 rounded-lg border transition-all ${task.completed
+                        ? 'bg-success/5 border-success/20'
                         : 'bg-muted/30 border-border/50'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-3">
                       {task.completed ? (
@@ -134,7 +133,7 @@ const CalendarPage = () => {
   const longestStreak = useTaskStore((state) => state.longestStreak);
   const storeTasks = useTaskStore((state) => state.tasks);
   const heatmapData = generateHeatmapData(365);
-  
+
   const [selectedDate, setSelectedDate] = useState(null);
 
   const today = new Date();
@@ -215,9 +214,9 @@ const CalendarPage = () => {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <span>Productivity Heatmap</span>
-              <span className="text-sm font-normal text-muted-foreground">Click on a day to view tasks</span>
+              <span className="text-xs sm:text-sm font-normal text-muted-foreground">Click on a day to view tasks</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto pb-4">

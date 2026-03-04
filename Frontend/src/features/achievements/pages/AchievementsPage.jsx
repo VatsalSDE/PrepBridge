@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
+import {
   Trophy, Award, Flame, Star, Target, Zap, Medal, Crown,
   Lock, CheckCircle2, Calendar, TrendingUp
 } from 'lucide-react';
@@ -16,14 +16,14 @@ const BADGES = [
   { id: 1, name: '7-Day Warrior', icon: '🔥', description: 'Maintain a 7-day streak', category: 'consistency', earned: true, earnedDate: 'Dec 10, 2024' },
   { id: 2, name: '30-Day Champion', icon: '💪', description: 'Maintain a 30-day streak', category: 'consistency', earned: true, earnedDate: 'Dec 15, 2024' },
   { id: 3, name: '100-Day Legend', icon: '👑', description: 'Maintain a 100-day streak', category: 'consistency', earned: false, progress: 45 },
-  
+
   // Progress Badges
   { id: 4, name: 'DSA Beginner', icon: '💻', description: 'Complete 25% of DSA roadmap', category: 'progress', earned: true, earnedDate: 'Nov 20, 2024' },
   { id: 5, name: 'DSA Intermediate', icon: '⚡', description: 'Complete 50% of DSA roadmap', category: 'progress', earned: true, earnedDate: 'Dec 5, 2024' },
   { id: 6, name: 'DSA Master', icon: '🏆', description: 'Complete 100% of DSA roadmap', category: 'progress', earned: false, progress: 62 },
   { id: 7, name: 'Aptitude Pro', icon: '🧮', description: 'Complete 50% of Aptitude', category: 'progress', earned: false, progress: 35 },
   { id: 8, name: 'Core CS Expert', icon: '📚', description: 'Complete 75% of Core CS', category: 'progress', earned: false, progress: 48 },
-  
+
   // Milestone Badges
   { id: 9, name: 'First Step', icon: '👣', description: 'Complete your first task', category: 'milestone', earned: true, earnedDate: 'Oct 1, 2024' },
   { id: 10, name: 'Reflective Mind', icon: '🪞', description: 'Submit your first weekly reflection', category: 'milestone', earned: true, earnedDate: 'Oct 7, 2024' },
@@ -40,28 +40,26 @@ const MILESTONES = [
 
 function BadgeCard({ badge }) {
   return (
-    <motion.div 
+    <motion.div
       variants={itemVariants}
-      whileHover={{ 
+      whileHover={{
         scale: badge.earned ? 1.05 : 1,
         y: badge.earned ? -5 : 0,
       }}
       whileTap={{ scale: badge.earned ? 0.98 : 1 }}
       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
     >
-      <Card className={`glass-card transition-all ${
-        badge.earned 
-          ? 'hover:shadow-lg hover:shadow-primary/20 cursor-pointer' 
+      <Card className={`glass-card transition-all ${badge.earned
+          ? 'hover:shadow-lg hover:shadow-primary/20 cursor-pointer'
           : 'opacity-60'
-      }`}>
+        }`}>
         <CardContent className="p-5 text-center">
-          <motion.div 
-            className={`w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl ${
-              badge.earned 
-                ? 'bg-gradient-to-br from-primary/20 to-accent/20' 
+          <motion.div
+            className={`w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl ${badge.earned
+                ? 'bg-gradient-to-br from-primary/20 to-accent/20'
                 : 'bg-muted'
-            }`}
-            whileHover={badge.earned ? { 
+              }`}
+            whileHover={badge.earned ? {
               rotate: [0, -10, 10, 0],
               transition: { duration: 0.5 }
             } : {}}
@@ -99,15 +97,15 @@ export default function AchievementsPage() {
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <Trophy className="w-8 h-8 text-warning" />
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
+            <Trophy className="w-7 h-7 md:w-8 md:h-8 text-warning shrink-0" />
             Achievements
           </h1>
-          <p className="text-muted-foreground mt-1">Celebrate your progress and milestones</p>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Celebrate your progress and milestones</p>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <p className="text-3xl font-bold text-primary">{earnedBadges}/{totalBadges}</p>
           <p className="text-sm text-muted-foreground">Badges Earned</p>
         </div>
@@ -118,13 +116,13 @@ export default function AchievementsPage() {
         <motion.div variants={itemVariants}>
           <Card className="glass-card bg-gradient-to-br from-streak/10 to-warning/10 border-streak/20">
             <CardContent className="p-5 text-center">
-              <motion.div 
+              <motion.div
                 className="text-5xl mb-2"
-                animate={{ 
+                animate={{
                   scale: [1, 1.2, 1],
                   rotate: [0, 5, -5, 0]
                 }}
-                transition={{ 
+                transition={{
                   duration: 0.5,
                   repeat: Infinity,
                   repeatDelay: 3
@@ -169,14 +167,13 @@ export default function AchievementsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {MILESTONES.map((milestone, idx) => (
                 <div key={idx} className="flex-1 text-center">
-                  <div className={`w-12 h-12 mx-auto mb-2 rounded-full flex items-center justify-center ${
-                    milestone.achieved 
-                      ? 'bg-success text-white' 
+                  <div className={`w-12 h-12 mx-auto mb-2 rounded-full flex items-center justify-center ${milestone.achieved
+                      ? 'bg-success text-white'
                       : 'bg-muted'
-                  }`}>
+                    }`}>
                     {milestone.achieved ? (
                       <CheckCircle2 className="w-6 h-6" />
                     ) : (

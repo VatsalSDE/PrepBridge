@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Map, Code2, Database, Calculator, Layers, ChevronDown, ChevronRight,
   CheckCircle2, Circle, BookOpen, Lightbulb, Server, Shield, Cloud,
   Brain, Smartphone, Globe, Terminal, BarChart3, Cpu, Palette, Lock
@@ -468,7 +468,7 @@ function RoadmapSection({ section, type, onToggle }) {
   const progress = calcSectionProgress(section, type);
 
   return (
-    <motion.div 
+    <motion.div
       variants={itemVariants}
       className="border border-border/50 rounded-lg overflow-hidden"
     >
@@ -500,11 +500,10 @@ function RoadmapSection({ section, type, onToggle }) {
                 section.patterns.map((pattern, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                      pattern.completed
+                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${pattern.completed
                         ? 'bg-success/10 border border-success/20'
                         : 'bg-background/50 hover:bg-muted/40'
-                    }`}
+                      }`}
                     onClick={() => onToggle(idx)}
                   >
                     <div className="flex items-center gap-3">
@@ -527,11 +526,10 @@ function RoadmapSection({ section, type, onToggle }) {
                 section.topics.map((topic, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                      topic.completed
+                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${topic.completed
                         ? 'bg-success/10 border border-success/20'
                         : 'bg-background/50 hover:bg-muted/40'
-                    }`}
+                      }`}
                     onClick={() => onToggle(idx)}
                   >
                     <div className="flex items-center gap-3">
@@ -595,9 +593,9 @@ function RoadmapCard({ roadmap, type, onToggleItem }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {roadmap.sections.map((section, sIdx) => (
-          <RoadmapSection 
-            key={sIdx} 
-            section={section} 
+          <RoadmapSection
+            key={sIdx}
+            section={section}
             type={type}
             onToggle={(itemIdx) => onToggleItem(sIdx, itemIdx)}
           />
@@ -628,8 +626,8 @@ function DomainRoleCard({ role, onClick }) {
             <div className={`p-3 rounded-xl bg-gradient-to-br ${role.color} shadow-lg`}>
               <Icon className="w-6 h-6 text-white" />
             </div>
-            <Badge 
-              variant={progress === 100 ? "default" : "secondary"} 
+            <Badge
+              variant={progress === 100 ? "default" : "secondary"}
               className="text-sm font-bold"
             >
               {progress}%
@@ -654,7 +652,7 @@ function DomainRoleDetail({ role, onClose }) {
   const progress = Math.round((completedCount / skills.length) * 100);
 
   const toggleSkill = (index) => {
-    setSkills(prev => prev.map((skill, i) => 
+    setSkills(prev => prev.map((skill, i) =>
       i === index ? { ...skill, completed: !skill.completed } : skill
     ));
   };
@@ -704,11 +702,10 @@ function DomainRoleDetail({ role, onClose }) {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.03 }}
-                  className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
-                    skill.completed 
-                      ? 'bg-success/10 border border-success/20' 
+                  className={`flex items-center gap-3 p-3 rounded-lg transition-all ${skill.completed
+                      ? 'bg-success/10 border border-success/20'
                       : 'bg-muted/30 hover:bg-muted/50'
-                  }`}
+                    }`}
                 >
                   <Checkbox
                     checked={skill.completed}
@@ -812,11 +809,11 @@ export default function RoadmapPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <Map className="w-8 h-8 text-primary" />
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3">
+            <Map className="w-7 h-7 md:w-8 md:h-8 text-primary shrink-0" />
             Preparation Roadmap
           </h1>
-          <p className="text-muted-foreground mt-1">Track your progress across all preparation areas</p>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Track your progress across all preparation areas</p>
         </div>
       </div>
 
@@ -872,7 +869,7 @@ export default function RoadmapPage() {
 
         <TabsContent value="foundations" className="space-y-6">
           <Tabs defaultValue="dsa" className="space-y-4">
-            <TabsList className="grid grid-cols-4 w-full max-w-xl">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full max-w-xl">
               <TabsTrigger value="dsa" className="flex items-center gap-2">
                 <Code2 className="w-4 h-4" /> DSA
               </TabsTrigger>

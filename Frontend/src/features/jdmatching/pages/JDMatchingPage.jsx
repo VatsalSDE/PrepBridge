@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   FileSearch, Target, CheckCircle2, XCircle, Lightbulb, Upload,
   Briefcase, Clock, ChevronRight, Sparkles, Building2,
   GraduationCap, BarChart3, FileText, AlertCircle, Search,
@@ -26,12 +26,12 @@ export default function JDMatchingPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [matchResult, setMatchResult] = useState(null);
   const [activeTab, setActiveTab] = useState('jd');
-  
+
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState('All Cities');
 
-  const selectedCompany = useMemo(() => 
+  const selectedCompany = useMemo(() =>
     COMPANIES.find(c => c.id === selectedCompanyId),
     [selectedCompanyId]
   );
@@ -74,9 +74,9 @@ export default function JDMatchingPage() {
     setTimeout(() => {
       const company = COMPANIES.find(c => c.id === selectedCompanyId);
       const jdLower = company.jd.toLowerCase();
-      
+
       const resumeSkills = resumeText.toLowerCase();
-      const matchedSkills = DEFAULT_RESUME_SKILLS.filter(skill => 
+      const matchedSkills = DEFAULT_RESUME_SKILLS.filter(skill =>
         resumeSkills.includes(skill.toLowerCase()) || jdLower.includes(skill.toLowerCase())
       );
 
@@ -260,13 +260,13 @@ export default function JDMatchingPage() {
           <motion.div variants={itemVariants}>
             <Card className="glass-card bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
                     <span className="text-3xl">{selectedCompany.logo}</span>
-                    <div>
-                      <h2 className="text-xl font-semibold">{selectedCompany.name}</h2>
+                    <div className="min-w-0">
+                      <h2 className="text-lg sm:text-xl font-semibold">{selectedCompany.name}</h2>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
+                        <MapPin className="w-3 h-3 shrink-0" />
                         {selectedCompany.city}
                         <span>•</span>
                         <span>{selectedCompany.industry}</span>
@@ -283,19 +283,21 @@ export default function JDMatchingPage() {
                         size="sm"
                         onClick={() => window.open(selectedCompany.websiteUrl, '_blank')}
                       >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Visit Company Page
+                        <ExternalLink className="w-4 h-4 mr-1 sm:mr-2" />
+                        <span className="hidden sm:inline">Visit Company Page</span>
+                        <span className="sm:hidden">Visit</span>
                       </Button>
                     )}
                     <Button variant="outline" size="sm" onClick={clearSelection}>
-                      <X className="w-4 h-4 mr-2" />
-                      Change Company
+                      <X className="w-4 h-4 mr-1 sm:mr-2" />
+                      <span className="hidden sm:inline">Change Company</span>
+                      <span className="sm:hidden">Change</span>
                     </Button>
                   </div>
                 </div>
 
                 {/* Focus Distribution */}
-                <div className="grid grid-cols-4 gap-2 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
                   <div className="p-2 rounded-lg bg-blue-500/10 text-center">
                     <div className="text-xs text-muted-foreground">DSA</div>
                     <div className="font-semibold text-blue-500">
@@ -370,8 +372,8 @@ export default function JDMatchingPage() {
                   </div>
                 </div>
 
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   size="lg"
                   onClick={analyzeMatch}
                   disabled={(!resumeText.trim() && !resumeFile) || isAnalyzing}
@@ -518,14 +520,13 @@ export default function JDMatchingPage() {
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {matchResult.missingSkills.map((skill, idx) => (
-                                <Badge 
-                                  key={idx} 
-                                  variant="outline" 
-                                  className={`${
-                                    skill.priority === 'high' 
-                                      ? 'bg-red-500/10 text-red-500 border-red-500/20' 
+                                <Badge
+                                  key={idx}
+                                  variant="outline"
+                                  className={`${skill.priority === 'high'
+                                      ? 'bg-red-500/10 text-red-500 border-red-500/20'
                                       : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                                  }`}
+                                    }`}
                                 >
                                   {skill.name}
                                 </Badge>
@@ -577,7 +578,7 @@ export default function JDMatchingPage() {
                         <AlertCircle className="w-12 h-12 text-muted-foreground mb-3" />
                         <h3 className="font-medium mb-2">Guidelines Coming Soon</h3>
                         <p className="text-sm text-muted-foreground max-w-md">
-                          Interview preparation guidelines for {selectedCompany.name} are being compiled from verified alumni experiences. 
+                          Interview preparation guidelines for {selectedCompany.name} are being compiled from verified alumni experiences.
                           Check back soon for actionable tips and strategies!
                         </p>
                       </div>

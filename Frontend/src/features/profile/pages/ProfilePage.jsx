@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  User, Mail, Building2, GraduationCap, Target, Code2, 
+import {
+  User, Mail, Building2, GraduationCap, Target, Code2,
   Github, Globe, FileText, Edit3, Save, X, Plus, Trash2,
   Award, Calendar, TrendingUp, Upload, Clock
 } from 'lucide-react';
@@ -17,7 +17,7 @@ import { containerVariants, itemVariants } from '@/utils/animations';
 import { TARGET_ROLES, MOCK_USER } from '@/utils/constants';
 
 const AVAILABLE_SKILLS = [
-  'JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'Java', 
+  'JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'Java',
   'C++', 'SQL', 'MongoDB', 'Git', 'Docker', 'AWS', 'REST APIs',
   'Data Structures', 'Algorithms', 'System Design', 'Machine Learning'
 ];
@@ -73,9 +73,9 @@ export default function ProfilePage() {
   };
 
   const deleteProject = (index) => {
-    setProfile({ 
-      ...profile, 
-      projects: profile.projects.filter((_, idx) => idx !== index) 
+    setProfile({
+      ...profile,
+      projects: profile.projects.filter((_, idx) => idx !== index)
     });
     toast.success('Project removed');
   };
@@ -113,10 +113,10 @@ export default function ProfilePage() {
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Profile</h1>
-          <p className="text-muted-foreground mt-1">Manage your profile and career goals</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Profile</h1>
+          <p className="text-muted-foreground mt-1 text-sm md:text-base">Manage your profile and career goals</p>
         </div>
         {isEditing ? (
           <div className="flex gap-2">
@@ -146,7 +146,7 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-3xl font-bold text-white">
                   {profile.name.split(' ').map(n => n[0]).join('')}
                 </div>
@@ -154,9 +154,9 @@ export default function ProfilePage() {
                   <div>
                     <Label>Full Name</Label>
                     {isEditing ? (
-                      <Input 
-                        value={profile.name} 
-                        onChange={(e) => setProfile({...profile, name: e.target.value})}
+                      <Input
+                        value={profile.name}
+                        onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                       />
                     ) : (
                       <p className="text-foreground font-medium">{profile.name}</p>
@@ -187,9 +187,9 @@ export default function ProfilePage() {
                 <div>
                   <Label>College</Label>
                   {isEditing ? (
-                    <Input 
-                      value={profile.college} 
-                      onChange={(e) => setProfile({...profile, college: e.target.value})}
+                    <Input
+                      value={profile.college}
+                      onChange={(e) => setProfile({ ...profile, college: e.target.value })}
                     />
                   ) : (
                     <p className="text-foreground flex items-center gap-2">
@@ -201,9 +201,9 @@ export default function ProfilePage() {
                 <div>
                   <Label>Branch</Label>
                   {isEditing ? (
-                    <Input 
-                      value={profile.branch} 
-                      onChange={(e) => setProfile({...profile, branch: e.target.value})}
+                    <Input
+                      value={profile.branch}
+                      onChange={(e) => setProfile({ ...profile, branch: e.target.value })}
                     />
                   ) : (
                     <p className="text-foreground">{profile.branch}</p>
@@ -212,9 +212,9 @@ export default function ProfilePage() {
                 <div>
                   <Label>Year of Study</Label>
                   {isEditing ? (
-                    <Select 
+                    <Select
                       value={String(profile.year)}
-                      onValueChange={(value) => setProfile({...profile, year: parseInt(value)})}
+                      onValueChange={(value) => setProfile({ ...profile, year: parseInt(value) })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -232,12 +232,12 @@ export default function ProfilePage() {
                 <div>
                   <Label>CGPA</Label>
                   {isEditing ? (
-                    <Input 
+                    <Input
                       type="number"
                       step="0.1"
                       max="10"
-                      value={profile.cgpa} 
-                      onChange={(e) => setProfile({...profile, cgpa: parseFloat(e.target.value)})}
+                      value={profile.cgpa}
+                      onChange={(e) => setProfile({ ...profile, cgpa: parseFloat(e.target.value) })}
                     />
                   ) : (
                     <p className="text-foreground font-semibold text-lg">{profile.cgpa}/10</p>
@@ -273,9 +273,9 @@ export default function ProfilePage() {
                   <Label className="text-sm text-muted-foreground">Add Skills</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {AVAILABLE_SKILLS.filter(s => !profile.skills.includes(s)).map((skill) => (
-                      <Badge 
-                        key={skill} 
-                        variant="outline" 
+                      <Badge
+                        key={skill}
+                        variant="outline"
                         className="cursor-pointer hover:bg-primary/10"
                         onClick={() => addSkill(skill)}
                       >
@@ -309,9 +309,9 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   {isEditing && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="text-destructive"
                       onClick={() => deleteProject(idx)}
                     >
@@ -321,8 +321,8 @@ export default function ProfilePage() {
                 </div>
               ))}
               {isEditing && !showProjectForm && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={() => setShowProjectForm(true)}
                 >
@@ -333,26 +333,26 @@ export default function ProfilePage() {
                 <div className="space-y-3 p-4 rounded-lg bg-muted/30">
                   <div>
                     <Label>Project Name</Label>
-                    <Input 
+                    <Input
                       placeholder="E.g., Portfolio Website"
                       value={newProject.name}
-                      onChange={(e) => setNewProject({...newProject, name: e.target.value})}
+                      onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
                     />
                   </div>
                   <div>
                     <Label>Project URL</Label>
-                    <Input 
+                    <Input
                       placeholder="https://github.com/username/project"
                       value={newProject.url}
-                      onChange={(e) => setNewProject({...newProject, url: e.target.value})}
+                      onChange={(e) => setNewProject({ ...newProject, url: e.target.value })}
                     />
                   </div>
                   <div className="flex gap-2">
                     <Button onClick={addProject} className="flex-1">
                       <Plus className="w-4 h-4 mr-2" /> Add
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         setShowProjectForm(false);
                         setNewProject({ name: '', url: '' });
@@ -380,11 +380,11 @@ export default function ProfilePage() {
                 <div>
                   <Label>LeetCode</Label>
                   {isEditing ? (
-                    <Input 
-                      value={profile.codingProfiles.leetcode} 
+                    <Input
+                      value={profile.codingProfiles.leetcode}
                       onChange={(e) => setProfile({
-                        ...profile, 
-                        codingProfiles: {...profile.codingProfiles, leetcode: e.target.value}
+                        ...profile,
+                        codingProfiles: { ...profile.codingProfiles, leetcode: e.target.value }
                       })}
                     />
                   ) : (
@@ -394,11 +394,11 @@ export default function ProfilePage() {
                 <div>
                   <Label>Codolio</Label>
                   {isEditing ? (
-                    <Input 
-                      value={profile.codingProfiles.codolio} 
+                    <Input
+                      value={profile.codingProfiles.codolio}
                       onChange={(e) => setProfile({
-                        ...profile, 
-                        codingProfiles: {...profile.codingProfiles, codolio: e.target.value}
+                        ...profile,
+                        codingProfiles: { ...profile.codingProfiles, codolio: e.target.value }
                       })}
                     />
                   ) : (
@@ -408,11 +408,11 @@ export default function ProfilePage() {
                 <div>
                   <Label>GeeksforGeeks</Label>
                   {isEditing ? (
-                    <Input 
-                      value={profile.codingProfiles.gfg} 
+                    <Input
+                      value={profile.codingProfiles.gfg}
                       onChange={(e) => setProfile({
-                        ...profile, 
-                        codingProfiles: {...profile.codingProfiles, gfg: e.target.value}
+                        ...profile,
+                        codingProfiles: { ...profile.codingProfiles, gfg: e.target.value }
                       })}
                     />
                   ) : (
@@ -436,9 +436,9 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent>
               {isEditing ? (
-                <Select 
+                <Select
                   value={profile.targetRole}
-                  onValueChange={(value) => setProfile({...profile, targetRole: value})}
+                  onValueChange={(value) => setProfile({ ...profile, targetRole: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -550,16 +550,16 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="flex-1"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Upload className="w-4 h-4 mr-2" /> Replace
                     </Button>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => {
                         setResumeFile(null);
@@ -574,8 +574,8 @@ export default function ProfilePage() {
                 <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
                   <FileText className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground mb-3">Upload your resume (PDF, max 5MB)</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -583,9 +583,9 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               )}
-              <input 
+              <input
                 ref={fileInputRef}
-                type="file" 
+                type="file"
                 accept=".pdf"
                 onChange={handleResumeUpload}
                 className="hidden"

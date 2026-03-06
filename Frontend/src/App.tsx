@@ -98,6 +98,18 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+const AuthBootstrap = () => {
+  const token = useAuthStore((state) => state.token);
+  const fetchCurrentUser = useAuthStore((state) => state.fetchCurrentUser);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchCurrentUser().catch(() => null);
+  }, [token, fetchCurrentUser]);
+
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -127,6 +139,7 @@ const App = () => (
         }}
       />
       <BrowserRouter>
+        <AuthBootstrap />
         <AnimatePresence mode="wait">
           <Routes>
             <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />

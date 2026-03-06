@@ -115,8 +115,11 @@ const register = asyncHandler(async (req, res) => {
   // ============ GENERATE OTP ============
   const otp = user.generateOTP();
   await user.save();
-  
-  await emailService.sendOTP(email, otp, name);
+
+  const emailResult = await emailService.sendOTP(email, otp, name);
+  if (!emailResult?.success) {
+    throw new AppError("Unable to send OTP email. Please try again.", 500);
+  }
   
   res.status(201).json({
     success: true,
@@ -282,9 +285,15 @@ const forgotPassword = asyncHandler(async (req, res) => {
   user.resetPasswordExpiry = Date.now() + 30 * 60 * 1000;  // 30 minutes
   await user.save();
   
-  // TODO: Send email with reset link
-  // For now, logging to console
-  console.log(`🔑 Password reset token for ${email}: ${resetToken}`);
+  const resetEmailResult = await emailService.sendPasswordReset(
+    user.email,
+    resetToken,
+    user.name
+  );
+
+  if (!resetEmailResult?.success) {
+    throw new AppError("Unable to send password reset email. Please try again.", 500);
+  }
   
   res.status(200).json({
     success: true,
@@ -408,8 +417,10 @@ const resendOTP = asyncHandler(async (req, res) => {
   const otp = user.generateOTP();
   await user.save();
   
-  // TODO: Send OTP via email
-  console.log(`📧 New OTP for ${email}: ${otp}`);
+  const resendEmailResult = await emailService.sendOTP(user.email, otp, user.name);
+  if (!resendEmailResult?.success) {
+    throw new AppError("Unable to resend OTP email. Please try again.", 500);
+  }
   
   res.status(200).json({
     success: true,

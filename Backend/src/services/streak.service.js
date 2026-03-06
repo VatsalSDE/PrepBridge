@@ -72,8 +72,8 @@ const resetWeeklyStats = async () => {
   return result.modifiedCount;
 };
 
-// Update activity log when task completes
-const updateActivityLog = async (userId, task) => {
+// Rebuild today's activity log from tasks to keep aggregates consistent.
+const updateActivityLog = async (userId) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -98,29 +98,63 @@ const updateActivityLog = async (userId, task) => {
     });
   }
 
-  // Update counts
-  activityLog.tasksCompleted += 1;
-  activityLog.minutesSpent += task.actualTime || 0;
-  activityLog.pomodoroSessions += task.pomodoroCount || 0;
-
-  // Update category breakdown
-  const category = task.category || 'other';
-  if (!activityLog.categoryBreakdown) {
-    activityLog.categoryBreakdown = {};
-  }
-  activityLog.categoryBreakdown[category] = 
-    (activityLog.categoryBreakdown[category] || 0) + (task.actualTime || 0);
-
-  // Calculate productivity score (tasks completed * weight)
-  const totalTasksToday = await Task.countDocuments({
+  const tasksToday = await Task.find({
     userId,
     date: { $gte: today, $lt: tomorrow }
   });
-  
-  activityLog.tasksTotal = totalTasksToday;
-  activityLog.completionRate = totalTasksToday > 0 
-    ? Math.round((activityLog.tasksCompleted / totalTasksToday) * 100) 
+
+  const completedTasks = tasksToday.filter((task) => task.completed);
+  const categoryMap = {
+    'dsa': 'dsa',
+    'core-cs': 'coreCS',
+    'development': 'development',
+    'aptitude': 'aptitude',
+    'soft-skills': 'softSkills',
+    'mock-interview': 'mockInterview',
+    'project': 'project',
+  };
+
+  const initialCategoryBreakdown = {
+    dsa: 0,
+    coreCS: 0,
+    development: 0,
+    aptitude: 0,
+    softSkills: 0,
+    mockInterview: 0,
+    project: 0,
+  };
+
+  const initialCategoryCount = {
+    dsa: 0,
+    coreCS: 0,
+    development: 0,
+    aptitude: 0,
+    softSkills: 0,
+    mockInterview: 0,
+    project: 0,
+  };
+
+  const categoryBreakdown = { ...initialCategoryBreakdown };
+  const categoryCount = { ...initialCategoryCount };
+
+  for (const task of completedTasks) {
+    const categoryKey = categoryMap[task.category] || 'dsa';
+    categoryBreakdown[categoryKey] += task.actualTime || 0;
+    categoryCount[categoryKey] += 1;
+  }
+
+  activityLog.tasksTotal = tasksToday.length;
+  activityLog.tasksCompleted = completedTasks.length;
+  activityLog.minutesSpent = completedTasks.reduce((sum, task) => sum + (task.actualTime || 0), 0);
+  activityLog.pomodoroSessions = completedTasks.reduce((sum, task) => sum + (task.pomodoroCount || 0), 0);
+  activityLog.categoryBreakdown = categoryBreakdown;
+  activityLog.categoryCount = categoryCount;
+
+  const completionRate = activityLog.tasksTotal > 0
+    ? Math.round((activityLog.tasksCompleted / activityLog.tasksTotal) * 100)
     : 0;
+
+  activityLog.completionRate = Math.min(100, Math.max(0, completionRate));
   activityLog.productivityScore = Math.min(100, activityLog.completionRate);
 
   await activityLog.save();

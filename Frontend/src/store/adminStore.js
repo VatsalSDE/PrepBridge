@@ -1,30 +1,53 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-// Admin credentials (in production, this would be server-side validated)
-const ADMIN_EMAIL = 'admin@prepbridge.com';
-const ADMIN_PASSWORD = 'admin123';
+import adminService from '@/services/adminService';
 
 const useAdminStore = create(
   persist(
-    (set, get) => ({
+    (set) => ({
       isAdmin: false,
       adminUser: null,
+      adminToken: null,
+      dashboardStats: null,
+      isLoading: false,
+      error: null,
 
-      loginAdmin: (email, password) => {
-        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-          set({ 
-            isAdmin: true, 
-            adminUser: { email, name: 'Admin', role: 'admin' } 
+      loginAdmin: async (email, password) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const response = await adminService.login({ email, password });
+          set({
+            isAdmin: true,
+            adminUser: response.user,
+            adminToken: response.token,
+            isLoading: false,
+            error: null,
           });
           return { success: true };
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          return { success: false, error: error.message };
         }
-        return { success: false, error: 'Invalid admin credentials' };
+      },
+
+      fetchDashboard: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await adminService.getDashboard();
+          set({ dashboardStats: response.data, isLoading: false, error: null });
+          return response.data;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
       },
 
       logoutAdmin: () => {
-        set({ isAdmin: false, adminUser: null });
+        set({ isAdmin: false, adminUser: null, adminToken: null, dashboardStats: null, error: null });
       },
+
+      clearError: () => set({ error: null }),
     }),
     {
       name: 'prepbridge-admin',

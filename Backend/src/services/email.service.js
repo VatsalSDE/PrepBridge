@@ -10,18 +10,26 @@ const nodemailer = require('nodemailer');
 
 // Create transporter (reusable)
 const createTransporter = () => {
-  // For development: use console logging if no SMTP configured
-  if (process.env.NODE_ENV === 'development' && !process.env.SMTP_HOST) {
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+
+  // For development: use console logging if no SMTP credentials are configured.
+  if (process.env.NODE_ENV === 'development' && (!smtpHost || !smtpUser || !smtpPass)) {
+    return null;
+  }
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
     return null;
   }
 
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: smtpHost,
     port: process.env.SMTP_PORT || 587,
     secure: process.env.SMTP_PORT === '465',
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
+      user: smtpUser,
+      pass: smtpPass
     }
   });
 };

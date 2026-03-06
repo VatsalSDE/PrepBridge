@@ -1,59 +1,135 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import taskService from '@/services/taskService';
+
+const normalizeTask = (task) => ({
+  id: task._id || task.id,
+  title: task.title,
+  description: task.description || '',
+  category: task.category || 'dsa',
+  priority: task.priority || 'medium',
+  estimatedTime: task.estimatedTime || 60,
+  actualTime: task.actualTime || 0,
+  completed: Boolean(task.completed),
+  createdAt: task.createdAt,
+  completedAt: task.completedAt,
+  date: task.date,
+});
 
 const useTaskStore = create(
   persist(
-    (set, get) => ({
+    (set) => ({
       tasks: [],
       todaysTasks: [],
-      streak: 7,
-      longestStreak: 14,
+      streak: 0,
+      longestStreak: 0,
+      isLoading: false,
+      error: null,
 
-      addTask: (task) => {
-        const newTask = {
-          id: Date.now().toString(),
-          ...task,
-          completed: false,
-          createdAt: new Date().toISOString(),
-          actualTime: 0,
-        };
-        set((state) => ({
-          tasks: [...state.tasks, newTask],
-          todaysTasks: [...state.todaysTasks, newTask],
-        }));
+      fetchTodayTasks: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await taskService.getTodayTasks();
+          const normalized = (response?.data || []).map(normalizeTask);
+          set({
+            tasks: normalized,
+            todaysTasks: normalized,
+            isLoading: false,
+            error: null,
+          });
+          return normalized;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
       },
 
-      toggleTask: (taskId) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === taskId ? { ...task, completed: !task.completed } : task
-          ),
-          todaysTasks: state.todaysTasks.map((task) =>
-            task.id === taskId ? { ...task, completed: !task.completed } : task
-          ),
-        }));
+      addTask: async (task) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await taskService.createTask(task);
+          const createdTask = normalizeTask(response?.data || {});
+
+          set((state) => ({
+            tasks: [...state.tasks, createdTask],
+            todaysTasks: [...state.todaysTasks, createdTask],
+            isLoading: false,
+            error: null,
+          }));
+
+          return createdTask;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
       },
 
-      deleteTask: (taskId) => {
-        set((state) => ({
-          tasks: state.tasks.filter((task) => task.id !== taskId),
-          todaysTasks: state.todaysTasks.filter((task) => task.id !== taskId),
-        }));
+      toggleTask: async (taskId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await taskService.toggleTask(taskId);
+          const updatedTask = normalizeTask(response?.data || {});
+
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === taskId ? updatedTask : task
+            ),
+            todaysTasks: state.todaysTasks.map((task) =>
+              task.id === taskId ? updatedTask : task
+            ),
+            isLoading: false,
+            error: null,
+          }));
+
+          return updatedTask;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
       },
 
-      updateTask: (taskId, updates) => {
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === taskId ? { ...task, ...updates } : task
-          ),
-          todaysTasks: state.todaysTasks.map((task) =>
-            task.id === taskId ? { ...task, ...updates } : task
-          ),
-        }));
+      deleteTask: async (taskId) => {
+        set({ isLoading: true, error: null });
+        try {
+          await taskService.deleteTask(taskId);
+          set((state) => ({
+            tasks: state.tasks.filter((task) => task.id !== taskId),
+            todaysTasks: state.todaysTasks.filter((task) => task.id !== taskId),
+            isLoading: false,
+            error: null,
+          }));
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
+      },
+
+      updateTask: async (taskId, updates) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await taskService.updateTask(taskId, updates);
+          const updatedTask = normalizeTask(response?.data || {});
+
+          set((state) => ({
+            tasks: state.tasks.map((task) =>
+              task.id === taskId ? updatedTask : task
+            ),
+            todaysTasks: state.todaysTasks.map((task) =>
+              task.id === taskId ? updatedTask : task
+            ),
+            isLoading: false,
+            error: null,
+          }));
+
+          return updatedTask;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
       },
 
       getProductivity: () => {
-        const today = get().todaysTasks;
+        const today = useTaskStore.getState().todaysTasks;
         if (today.length === 0) return 0;
         const completed = today.filter((t) => t.completed).length;
         return Math.round((completed / today.length) * 100);
@@ -61,6 +137,10 @@ const useTaskStore = create(
 
       clearTodaysTasks: () => {
         set({ todaysTasks: [] });
+      },
+
+      clearError: () => {
+        set({ error: null });
       },
     }),
     {

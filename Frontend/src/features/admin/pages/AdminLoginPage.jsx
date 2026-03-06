@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Shield, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
@@ -13,28 +13,22 @@ export default function AdminLoginPage() {
   const navigate = useNavigate();
   const loginAdmin = useAdminStore((state) => state.loginAdmin);
   const isAdmin = useAdminStore((state) => state.isAdmin);
+  const isLoading = useAdminStore((state) => state.isLoading);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Redirect if already logged in
-  if (isAdmin) {
-    navigate('/admin');
-    return null;
-  }
+  useEffect(() => {
+    if (isAdmin) {
+      navigate('/admin', { replace: true });
+    }
+  }, [isAdmin, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
-
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const result = loginAdmin(email, password);
+    const result = await loginAdmin(email, password);
     
     if (result.success) {
       toast.success('Welcome to Admin Panel!');
@@ -42,8 +36,6 @@ export default function AdminLoginPage() {
     } else {
       setError(result.error);
     }
-    
-    setIsLoading(false);
   };
 
   return (

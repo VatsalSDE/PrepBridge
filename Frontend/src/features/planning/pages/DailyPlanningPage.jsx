@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
@@ -36,18 +36,17 @@ import useTaskStore from '@/store/taskStore';
 import { TASK_CATEGORIES, PRIORITY_LEVELS } from '@/utils/constants';
 import { getProductivityColor, getEncouragementMessage } from '@/utils/helpers';
 import toast from 'react-hot-toast';
-import EmptyState from '@/components/common/EmptyState';
 import PomodoroTimer from '@/components/productivity/PomodoroTimer';
 
-const initialTasks = [
-  { id: '1', title: 'Solve 5 LeetCode problems (Two Pointers)', category: 'dsa', priority: 'high', estimatedTime: 90, completed: false },
-  { id: '2', title: 'Review DBMS Normalization concepts', category: 'core-cs', priority: 'medium', estimatedTime: 45, completed: true },
-  { id: '3', title: 'Build REST API endpoints for user module', category: 'development', priority: 'high', estimatedTime: 120, completed: false },
-  { id: '4', title: 'Practice verbal reasoning - 20 questions', category: 'aptitude', priority: 'low', estimatedTime: 30, completed: false },
-];
-
 const DailyPlanningPage = () => {
-  const [tasks, setTasks] = useState(initialTasks);
+  const tasks = useTaskStore((state) => state.todaysTasks);
+  const isLoading = useTaskStore((state) => state.isLoading);
+  const fetchTodayTasks = useTaskStore((state) => state.fetchTodayTasks);
+  const createTask = useTaskStore((state) => state.addTask);
+  const updateTask = useTaskStore((state) => state.updateTask);
+  const toggleTaskStatus = useTaskStore((state) => state.toggleTask);
+  const removeTask = useTaskStore((state) => state.deleteTask);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -59,6 +58,12 @@ const DailyPlanningPage = () => {
     priority: 'medium',
     estimatedTime: 60,
   });
+
+  useEffect(() => {
+    fetchTodayTasks().catch((error) => {
+      toast.error(error.message || 'Failed to load today tasks');
+    });
+  }, [fetchTodayTasks]);
 
   const handlePomodoroComplete = (minutes) => {
     setPomodoroMinutes(prev => prev + minutes);
@@ -84,21 +89,26 @@ const DailyPlanningPage = () => {
   };
 
   const toggleTask = (taskId) => {
-    const task = tasks.find(t => t.id === taskId);
-    setTasks(tasks.map(task => 
-      task.id === taskId 
-        ? { ...task, completed: !task.completed }
-        : task
-    ));
-    
-    if (!task.completed) {
-      toast.success('🎉 Task completed! Great work!');
-    }
+    const task = tasks.find((currentTask) => currentTask.id === taskId);
+    toggleTaskStatus(taskId)
+      .then((updatedTask) => {
+        if (updatedTask?.completed && !task?.completed) {
+          toast.success('🎉 Task completed! Great work!');
+        }
+      })
+      .catch((error) => {
+        toast.error(error.message || 'Failed to update task status');
+      });
   };
 
   const deleteTask = (taskId) => {
-    setTasks(tasks.filter(t => t.id !== taskId));
-    toast.success('Task deleted');
+    removeTask(taskId)
+      .then(() => {
+        toast.success('Task deleted');
+      })
+      .catch((error) => {
+        toast.error(error.message || 'Failed to delete task');
+      });
   };
 
   const startEditTask = (task) => {
@@ -106,38 +116,51 @@ const DailyPlanningPage = () => {
     setIsEditDialogOpen(true);
   };
 
-  const saveEditTask = () => {
+  const saveEditTask = async () => {
     if (!editingTask.title.trim()) {
       toast.error('Please enter a task title');
       return;
     }
-    setTasks(tasks.map(t => t.id === editingTask.id ? editingTask : t));
-    setIsEditDialogOpen(false);
-    setEditingTask(null);
-    toast.success('✏️ Task updated!');
+
+    try {
+      await updateTask(editingTask.id, {
+        title: editingTask.title,
+        category: editingTask.category,
+        priority: editingTask.priority,
+        estimatedTime: editingTask.estimatedTime,
+      });
+      setIsEditDialogOpen(false);
+      setEditingTask(null);
+      toast.success('✏️ Task updated!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update task');
+    }
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTask.title.trim()) {
       toast.error('Please enter a task title');
       return;
     }
 
-    const task = {
-      id: Date.now().toString(),
-      ...newTask,
-      completed: false,
-    };
-
-    setTasks([...tasks, task]);
-    setNewTask({
-      title: '',
-      category: 'dsa',
-      priority: 'medium',
-      estimatedTime: 60,
-    });
-    setIsDialogOpen(false);
-    toast.success('📝 Task added to your plan!');
+    try {
+      await createTask({
+        title: newTask.title,
+        category: newTask.category,
+        priority: newTask.priority,
+        estimatedTime: newTask.estimatedTime,
+      });
+      setNewTask({
+        title: '',
+        category: 'dsa',
+        priority: 'medium',
+        estimatedTime: 60,
+      });
+      setIsDialogOpen(false);
+      toast.success('📝 Task added to your plan!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to add task');
+    }
   };
 
   return (
@@ -239,7 +262,7 @@ const DailyPlanningPage = () => {
                 Cancel
               </Button>
               <Button variant="hero" onClick={addTask}>
-                Add Task
+                {isLoading ? 'Adding...' : 'Add Task'}
               </Button>
             </DialogFooter>
           </DialogContent>

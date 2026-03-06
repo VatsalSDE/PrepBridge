@@ -17,6 +17,21 @@ const { errorHandler, notFound } = require("./middleware/errorHandler");
 // Initialize Express app
 const app = express();
 
+const defaultAllowedOrigins = [
+  'http://localhost:8080',
+  'http://localhost:5173',
+];
+
+const configuredOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([
+  ...defaultAllowedOrigins,
+  ...configuredOrigins,
+]));
+
 // ================================
 // MIDDLEWARE
 // ================================
@@ -24,12 +39,23 @@ const app = express();
 /**
  * CORS - Cross-Origin Resource Sharing
  * 
- * WHY: Frontend (localhost:5173) needs to access Backend (localhost:5000)
+ * WHY: Frontend (localhost:8080/5173) needs to access Backend (localhost:5000)
  * Without CORS, browser blocks the requests (Same-Origin Policy)
  */
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true  // Allow cookies if needed
+  origin(origin, callback) {
+    // Allow non-browser and same-origin requests that do not send Origin header.
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 /**

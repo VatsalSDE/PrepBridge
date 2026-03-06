@@ -121,10 +121,12 @@ exports.toggleTask = asyncHandler(async (req, res) => {
   task.completedAt = task.completed ? new Date() : null;
   await task.save();
 
-  // Update streak and activity log when task is completed
+  // Keep daily activity stats in sync for both complete and uncomplete actions.
+  await streakService.updateActivityLog(req.user.id);
+
+  // Update streak and badges only when task is completed.
   if (task.completed) {
     await streakService.updateStreakOnTaskComplete(req.user.id);
-    await streakService.updateActivityLog(req.user.id, task);
     await badgeService.checkBadgeProgress(req.user.id);
   }
 

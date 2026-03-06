@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm, Controller } from 'react-hook-form';
@@ -9,15 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import useAuthStore from '@/store/authStore';
 import { toast } from 'sonner';
-import { MOCK_USER } from '@/utils/constants';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuthStore();
+  const loginWithCredentials = useAuthStore((state) => state.loginWithCredentials);
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm({
+  const { register, handleSubmit, control, setValue, formState: { errors } } = useForm({
     defaultValues: {
       email: '',
       password: '',
@@ -25,32 +24,41 @@ const LoginPage = () => {
     }
   });
 
+  useEffect(() => {
+    const rememberMe = localStorage.getItem('rememberMe') === 'true';
+    const rememberedEmail = localStorage.getItem('rememberedEmail') || '';
+
+    if (rememberMe && rememberedEmail) {
+      setValue('email', rememberedEmail);
+      setValue('rememberMe', true);
+    }
+  }, [setValue]);
+
   const onSubmit = async (data) => {
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Store remember me preference
-    if (data.rememberMe) {
-      localStorage.setItem('rememberMe', 'true');
-      localStorage.setItem('rememberedEmail', data.email);
-    } else {
-      localStorage.removeItem('rememberMe');
-      localStorage.removeItem('rememberedEmail');
+
+    try {
+      await loginWithCredentials(data.email, data.password);
+
+      if (data.rememberMe) {
+        localStorage.setItem('rememberMe', 'true');
+        localStorage.setItem('rememberedEmail', data.email);
+      } else {
+        localStorage.removeItem('rememberMe');
+        localStorage.removeItem('rememberedEmail');
+      }
+
+      toast.success('Welcome back! 🎉');
+      navigate('/dashboard');
+    } catch (error) {
+      toast.error(error.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Mock login - in real app, this would be an API call
-    login(MOCK_USER);
-    toast.success('Welcome back! 🎉');
-    navigate('/dashboard');
-    
-    setIsLoading(false);
   };
 
   return (
     <div className="w-full">
-      {/* Mobile Logo */}
       <div className="lg:hidden flex items-center gap-2 mb-8">
         <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
           <span className="text-white font-bold text-xl">P</span>
@@ -143,7 +151,7 @@ const LoginPage = () => {
                 <Checkbox
                   id="rememberMe"
                   checked={field.value}
-                  onCheckedChange={field.onChange}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
                 />
               )}
             />

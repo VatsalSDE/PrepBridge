@@ -7,10 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { InputOTP } from '@/components/ui/input-otp';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import useAuthStore from '@/store/authStore';
 import { toast } from 'sonner';
-import { MOCK_USER } from '@/utils/constants';
 
 const passwordRequirements = [
   { id: 'length', label: 'At least 8 characters', test: (p) => p.length >= 8 },
@@ -28,7 +27,9 @@ const SignupPage = () => {
   const [otpLoading, setOtpLoading] = useState(false);
   const [canResendOtp, setCanResendOtp] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const { login } = useAuthStore();
+  const registerUser = useAuthStore((state) => state.registerUser);
+  const verifyOtpAndLogin = useAuthStore((state) => state.verifyOtpAndLogin);
+  const resendOtp = useAuthStore((state) => state.resendOtp);
 
   const { register, handleSubmit, watch, control, formState: { errors } } = useForm({
     defaultValues: {
@@ -48,6 +49,22 @@ const SignupPage = () => {
   const isPasswordValid = passwordRequirements.every(req => req.test(password));
   const isPasswordMatch = password && confirmPassword && password === confirmPassword;
   const isFormValid = isPasswordValid && isPasswordMatch && agreedToTerms;
+
+  const startResendCountdown = () => {
+    setCanResendOtp(false);
+    setResendTimer(60);
+
+    const interval = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setCanResendOtp(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const onSubmit = async (data) => {
     // Validate all password requirements
@@ -72,30 +89,20 @@ const SignupPage = () => {
     setIsLoading(true);
     
     try {
-      // Simulate sending OTP to email
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Store email for OTP verification
-      setOtpEmail(data.email);
+      const response = await registerUser({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+      });
+
+      setOtpEmail(response?.email || data.email);
       setShowOtpScreen(true);
-      setCanResendOtp(false);
-      setResendTimer(60);
+      setOtp('');
+      startResendCountdown();
       
       toast.success('OTP sent to your email!');
-      
-      // Start resend timer
-      const interval = setInterval(() => {
-        setResendTimer(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setCanResendOtp(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (error) {
-      toast.error('Failed to send OTP. Please try again.');
+      toast.error(error.message || 'Failed to send OTP. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -112,19 +119,11 @@ const SignupPage = () => {
     setOtpLoading(true);
     
     try {
-      // Simulate OTP verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock signup - in real app, this would be an API call
-      const userData = {
-        ...MOCK_USER,
-        email: otpEmail,
-      };
-      login(userData);
+      await verifyOtpAndLogin(otpEmail, otp);
       toast.success('Account created successfully! 🚀');
       navigate('/dashboard');
     } catch (error) {
-      toast.error('Invalid OTP. Please try again.');
+      toast.error(error.message || 'Invalid OTP. Please try again.');
     } finally {
       setOtpLoading(false);
     }
@@ -134,27 +133,12 @@ const SignupPage = () => {
     if (!canResendOtp) return;
     
     try {
-      // Simulate resending OTP
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setCanResendOtp(false);
-      setResendTimer(60);
+      await resendOtp(otpEmail);
       setOtp('');
+      startResendCountdown();
       toast.success('OTP resent to your email!');
-      
-      // Start resend timer again
-      const interval = setInterval(() => {
-        setResendTimer(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setCanResendOtp(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (error) {
-      toast.error('Failed to resend OTP. Please try again.');
+      toast.error(error.message || 'Failed to resend OTP. Please try again.');
     }
   };
 
@@ -421,20 +405,16 @@ const SignupPage = () => {
                     maxLength={6}
                     value={otp}
                     onChange={setOtp}
-                    render={({ slots }) => (
-                      <div className="flex gap-2">
-                        {slots.map((slot, index) => (
-                          <div key={index} className="relative h-12 w-12">
-                            <input
-                              {...slot}
-                              placeholder="0"
-                              type="text"
-                              inputMode="numeric"
-                              className="absolute inset-0 text-center text-2xl font-semibold border-2 border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
+                    containerClassName="justify-center"
+                    render={() => (
+                      <InputOTPGroup className="gap-2">
+                        <InputOTPSlot index={0} className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={1} className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={2} className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={3} className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={4} className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={5} className="h-12 w-12 rounded-md border text-xl" />
+                      </InputOTPGroup>
                     )}
                   />
                 </div>

@@ -1,19 +1,22 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
-  Building2, Plus, Edit, Trash2, Save, X, Check,
-  FileText, GraduationCap, AlertCircle, ChevronDown, ChevronUp,
-  MapPin, Sparkles, Wand2, ExternalLink
+  Building2,
+  Plus,
+  Edit,
+  Trash2,
+  Check,
+  Sparkles,
+  Save,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -23,664 +26,335 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import toast from 'react-hot-toast';
 import { containerVariants, itemVariants } from '@/utils/animations';
-import { COMPANIES, CITIES, INDUSTRIES, generateGuidelinesFromInput } from '@/features/jdmatching/data/mockCompanyData';
+import useAdminStore from '@/store/adminStore';
+import { toast } from 'sonner';
+
+const initialForm = {
+  name: '',
+  logo: '🏢',
+  city: '',
+  industry: '',
+  websiteUrl: '',
+  jd: '',
+  interviewPattern: 'Tech-heavy',
+  focusDistribution: { dsa: 25, coreCS: 25, systemDesign: 25, hr: 25 },
+  rawAlumniInput: '',
+  guidelines: [],
+};
+
+const normalizeCompanyPayload = (form) => ({
+  name: form.name.trim(),
+  logo: form.logo || '🏢',
+  city: form.city.trim(),
+  industry: form.industry.trim(),
+  websiteUrl: form.websiteUrl.trim(),
+  jd: form.jd.trim(),
+  interviewPattern: form.interviewPattern,
+  focusDistribution: {
+    dsa: Number(form.focusDistribution.dsa) || 0,
+    coreCS: Number(form.focusDistribution.coreCS) || 0,
+    systemDesign: Number(form.focusDistribution.systemDesign) || 0,
+    hr: Number(form.focusDistribution.hr) || 0,
+  },
+  rawAlumniInput: form.rawAlumniInput,
+  guidelines: (form.guidelines || []).filter(Boolean),
+});
 
 export default function AdminCompaniesPage() {
-  const [companies, setCompanies] = useState(COMPANIES);
-  const [selectedCompany, setSelectedCompany] = useState(null);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingCompany, setEditingCompany] = useState(null);
-  const [expandedCompany, setExpandedCompany] = useState(null);
-  const [generatedGuidelines, setGeneratedGuidelines] = useState(null);
+  const companies = useAdminStore((state) => state.companies);
+  const isLoading = useAdminStore((state) => state.isLoading);
+  const fetchCompanies = useAdminStore((state) => state.fetchCompanies);
+  const createCompany = useAdminStore((state) => state.createCompany);
+  const updateCompany = useAdminStore((state) => state.updateCompany);
+  const deleteCompany = useAdminStore((state) => state.deleteCompany);
+  const approveCompany = useAdminStore((state) => state.approveCompany);
+  const generateGuidelines = useAdminStore((state) => state.generateGuidelines);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    logo: '🏢',
-    city: '',
-    industry: '',
-    websiteUrl: '',
-    jd: '',
-    interviewPattern: 'Tech-heavy',
-    focusDistribution: { dsa: 25, coreCS: 25, systemDesign: 25, hr: 25 },
-    guidelines: ['', '', '', '', '', '', ''],
-    rawAlumniInput: '',
-    approved: false
-  });
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
+  const [formData, setFormData] = useState(initialForm);
+
+  useEffect(() => {
+    fetchCompanies().catch((error) => {
+      toast.error(error.message || 'Failed to load companies');
+    });
+  }, [fetchCompanies]);
+
+  const approvedCount = useMemo(() => companies.filter((company) => company.approved).length, [companies]);
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      logo: '🏢',
-      city: '',
-      industry: '',
-      websiteUrl: '',
-      jd: '',
-      interviewPattern: 'Tech-heavy',
-      focusDistribution: { dsa: 25, coreCS: 25, systemDesign: 25, hr: 25 },
-      guidelines: ['', '', '', '', '', '', ''],
-      rawAlumniInput: '',
-      approved: false
-    });
-    setGeneratedGuidelines(null);
-  };
-
-  const handleAddCompany = () => {
-    if (!formData.name.trim() || !formData.jd.trim()) {
-      toast.error('Company name and JD are required');
-      return;
-    }
-    if (!formData.city || !formData.industry) {
-      toast.error('City and Industry are required');
-      return;
-    }
-
-    const newCompany = {
-      ...formData,
-      id: formData.name.toLowerCase().replace(/\s+/g, '-'),
-      alumniInsights: [], // Keep for backward compatibility but not used
-      guidelines: formData.guidelines.filter(g => g.trim())
-    };
-
-    setCompanies([...companies, newCompany]);
-    setIsAddDialogOpen(false);
-    resetForm();
-    toast.success('✅ Company added successfully');
-  };
-
-  const handleEditCompany = (company) => {
-    setEditingCompany(company.id);
-    setExpandedCompany(company.id);
-    setFormData({
-      ...company,
-      websiteUrl: company.websiteUrl || '',
-      guidelines: [...(company.guidelines || []), '', '', '', '', '', '', ''].slice(0, 7),
-      rawAlumniInput: company.rawAlumniInput || ''
-    });
-  };
-
-  const handleSaveEdit = () => {
-    setCompanies(companies.map(c => 
-      c.id === editingCompany 
-        ? {
-            ...formData,
-            id: editingCompany,
-            alumniInsights: [], // Keep for backward compatibility
-            guidelines: formData.guidelines.filter(g => g.trim())
-          }
-        : c
-    ));
+    setFormData(initialForm);
     setEditingCompany(null);
+  };
+
+  const openCreateDialog = () => {
     resetForm();
-    toast.success('✅ Company updated successfully');
+    setIsDialogOpen(true);
   };
 
-  const handleDeleteCompany = (companyId) => {
-    setCompanies(companies.filter(c => c.id !== companyId));
-    toast.success('🗑️ Company deleted');
+  const openEditDialog = (company) => {
+    setEditingCompany(company);
+    setFormData({
+      ...initialForm,
+      ...company,
+      focusDistribution: {
+        dsa: company.focusDistribution?.dsa ?? 25,
+        coreCS: company.focusDistribution?.coreCS ?? 25,
+        systemDesign: company.focusDistribution?.systemDesign ?? 25,
+        hr: company.focusDistribution?.hr ?? 25,
+      },
+      guidelines: company.guidelines || [],
+    });
+    setIsDialogOpen(true);
   };
 
-  const handleApproveGuidelines = (companyId) => {
-    setCompanies(companies.map(c => 
-      c.id === companyId ? { ...c, approved: true } : c
-    ));
-    toast.success('✅ Guidelines approved and published');
-  };
+  const onSave = async () => {
+    const payload = normalizeCompanyPayload(formData);
 
-  const handleGenerateGuidelines = () => {
-    if (!formData.rawAlumniInput.trim()) {
-      toast.error('Please paste alumni interview communications first');
+    if (!payload.name || !payload.city || !payload.industry || !payload.jd) {
+      toast.error('Name, city, industry and JD are required');
       return;
     }
 
-    toast.loading('Generating guidelines...', { id: 'generate' });
-    
-    // Simulate AI processing
-    setTimeout(() => {
-      const generated = generateGuidelinesFromInput(formData.rawAlumniInput);
-      setGeneratedGuidelines(generated);
-      
-      // Auto-fill the guidelines
-      setFormData(prev => ({
-        ...prev,
-        guidelines: generated.tips.slice(0, 7)
-      }));
-      
-      toast.success('✨ Guidelines generated successfully!', { id: 'generate' });
-    }, 1500);
-  };
+    const totalFocus =
+      payload.focusDistribution.dsa +
+      payload.focusDistribution.coreCS +
+      payload.focusDistribution.systemDesign +
+      payload.focusDistribution.hr;
 
-  const updateFocusDistribution = (key, value) => {
-    const numValue = parseInt(value) || 0;
-    setFormData(prev => ({
-      ...prev,
-      focusDistribution: {
-        ...prev.focusDistribution,
-        [key]: Math.min(100, Math.max(0, numValue))
+    if (totalFocus > 100) {
+      toast.error('Focus distribution total cannot exceed 100');
+      return;
+    }
+
+    try {
+      if (editingCompany?._id) {
+        await updateCompany(editingCompany._id, payload);
+        toast.success('Company updated');
+      } else {
+        await createCompany(payload);
+        toast.success('Company created');
       }
-    }));
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast.error(error.message || 'Failed to save company');
+    }
   };
 
-  const updateGuideline = (index, value) => {
-    const newGuidelines = [...formData.guidelines];
-    newGuidelines[index] = value;
-    setFormData(prev => ({ ...prev, guidelines: newGuidelines }));
+  const onDelete = async (companyId) => {
+    try {
+      await deleteCompany(companyId);
+      toast.success('Company deleted');
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete company');
+    }
+  };
+
+  const onApprove = async (companyId) => {
+    try {
+      await approveCompany(companyId);
+      toast.success('Company approved');
+    } catch (error) {
+      toast.error(error.message || 'Failed to approve company');
+    }
+  };
+
+  const onGenerateGuidelines = async () => {
+    if (!editingCompany?._id) {
+      toast.error('Save company first, then generate guidelines');
+      return;
+    }
+    if (!formData.rawAlumniInput?.trim()) {
+      toast.error('Raw alumni input is required');
+      return;
+    }
+
+    try {
+      const updated = await generateGuidelines(editingCompany._id, formData.rawAlumniInput);
+      setFormData((prev) => ({ ...prev, guidelines: updated.guidelines || [] }));
+      toast.success('Guidelines generated');
+    } catch (error) {
+      toast.error(error.message || 'Failed to generate guidelines');
+    }
   };
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Building2 className="w-7 h-7 text-primary" />
             Company Management
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage companies, JDs, and interview preparation guidelines
-          </p>
+          <p className="text-muted-foreground">Single admin manages company JD and guidelines</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => { resetForm(); setIsAddDialogOpen(true); }}>
+            <Button onClick={openCreateDialog}>
               <Plus className="w-4 h-4 mr-2" />
               Add Company
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Company</DialogTitle>
-              <DialogDescription>
-                Add company details, JD, and alumni insights
-              </DialogDescription>
+              <DialogTitle>{editingCompany ? 'Edit Company' : 'Add Company'}</DialogTitle>
+              <DialogDescription>Manage company details, JD and generated guidelines</DialogDescription>
             </DialogHeader>
-            <CompanyForm 
-              formData={formData}
-              setFormData={setFormData}
-              updateFocusDistribution={updateFocusDistribution}
-              updateGuideline={updateGuideline}
-              onGenerateGuidelines={handleGenerateGuidelines}
-              generatedGuidelines={generatedGuidelines}
-            />
+
+            <div className="space-y-4 py-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Company Name *</Label>
+                  <Input value={formData.name} onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Logo Emoji</Label>
+                  <Input value={formData.logo} onChange={(event) => setFormData((prev) => ({ ...prev, logo: event.target.value }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>City *</Label>
+                  <Input value={formData.city} onChange={(event) => setFormData((prev) => ({ ...prev, city: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Industry *</Label>
+                  <Input value={formData.industry} onChange={(event) => setFormData((prev) => ({ ...prev, industry: event.target.value }))} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  Website URL
+                </Label>
+                <Input value={formData.websiteUrl} onChange={(event) => setFormData((prev) => ({ ...prev, websiteUrl: event.target.value }))} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Job Description *</Label>
+                <Textarea className="min-h-[140px]" value={formData.jd} onChange={(event) => setFormData((prev) => ({ ...prev, jd: event.target.value }))} />
+              </div>
+
+              <div className="grid grid-cols-4 gap-3">
+                {['dsa', 'coreCS', 'systemDesign', 'hr'].map((key) => (
+                  <div key={key} className="space-y-2">
+                    <Label className="capitalize">{key}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formData.focusDistribution?.[key] ?? 0}
+                      onChange={(event) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          focusDistribution: {
+                            ...prev.focusDistribution,
+                            [key]: Number(event.target.value) || 0,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <Label>Raw Alumni Input</Label>
+                <Textarea
+                  className="min-h-[120px]"
+                  value={formData.rawAlumniInput}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, rawAlumniInput: event.target.value }))}
+                />
+                <Button type="button" variant="outline" onClick={onGenerateGuidelines}>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate Guidelines
+                </Button>
+              </div>
+
+              {(formData.guidelines || []).length > 0 ? (
+                <div className="space-y-2">
+                  <Label>Guidelines</Label>
+                  <div className="space-y-2">
+                    {formData.guidelines.map((guideline, index) => (
+                      <div key={`${guideline}-${index}`} className="p-2 rounded-md bg-muted/30 text-sm">
+                        {index + 1}. {guideline}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button onClick={handleAddCompany}>
+              <Button onClick={onSave} disabled={isLoading}>
                 <Save className="w-4 h-4 mr-2" />
-                Save Company
+                {editingCompany ? 'Save Changes' : 'Create Company'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{companies.length}</div>
-            <div className="text-sm text-muted-foreground">Total Companies</div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-500">
-              {companies.filter(c => c.approved).length}
-            </div>
-            <div className="text-sm text-muted-foreground">Approved</div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-500">
-              {companies.filter(c => !c.approved).length}
-            </div>
-            <div className="text-sm text-muted-foreground">Pending Review</div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-primary">
-              {companies.reduce((sum, c) => sum + (c.guidelines?.length || 0), 0)}
-            </div>
-            <div className="text-sm text-muted-foreground">Total Guidelines</div>
-          </CardContent>
-        </Card>
+        <Card className="glass-card"><CardContent className="p-4"><p className="text-2xl font-bold">{companies.length}</p><p className="text-sm text-muted-foreground">Total</p></CardContent></Card>
+        <Card className="glass-card"><CardContent className="p-4"><p className="text-2xl font-bold text-success">{approvedCount}</p><p className="text-sm text-muted-foreground">Approved</p></CardContent></Card>
+        <Card className="glass-card"><CardContent className="p-4"><p className="text-2xl font-bold text-warning">{companies.length - approvedCount}</p><p className="text-sm text-muted-foreground">Pending</p></CardContent></Card>
+        <Card className="glass-card"><CardContent className="p-4"><p className="text-2xl font-bold text-primary">{companies.reduce((sum, company) => sum + (company.guidelines?.length || 0), 0)}</p><p className="text-sm text-muted-foreground">Guidelines</p></CardContent></Card>
       </div>
 
-      {/* Companies List */}
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle>All Companies</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {companies.map((company) => (
-              <motion.div
-                key={company.id}
-                variants={itemVariants}
-                className="border border-border rounded-lg overflow-hidden"
-              >
-                {/* Company Header Row */}
-                <div 
-                  className="flex items-center justify-between p-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => setExpandedCompany(expandedCompany === company.id ? null : company.id)}
-                >
+      <div className="space-y-3">
+        {companies.map((company) => (
+          <motion.div key={company._id} variants={itemVariants}>
+            <Card className="glass-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{company.logo}</span>
+                    <span className="text-2xl">{company.logo || '🏢'}</span>
                     <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {company.name}
-                        {company.approved ? (
-                          <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
-                            <Check className="w-3 h-3 mr-1" />
-                            Approved
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            Pending
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-4 mt-1">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {company.city || 'No city'}
-                        </span>
-                        <span>•</span>
-                        <span>{company.industry || 'No industry'}</span>
-                        <span>•</span>
-                        <span>{company.interviewPattern}</span>
-                        <span>•</span>
-                        <span>{company.guidelines?.length || 0} guidelines</span>
-                      </div>
+                      <p>{company.name}</p>
+                      <p className="text-xs text-muted-foreground font-normal">{company.city} • {company.industry}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={(e) => { e.stopPropagation(); handleEditCompany(company); }}
-                    >
+                    <Badge variant={company.approved ? 'default' : 'secondary'}>{company.approved ? 'Approved' : 'Pending'}</Badge>
+                    {!company.approved ? (
+                      <Button size="sm" variant="outline" onClick={() => onApprove(company._id)}>
+                        <Check className="w-4 h-4 mr-2" />Approve
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="outline" onClick={() => openEditDialog(company)}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-destructive"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteCompany(company.id); }}
-                    >
+                    <Button size="sm" variant="outline" className="text-destructive" onClick={() => onDelete(company._id)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
-                    {expandedCompany === company.id ? (
-                      <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                    )}
                   </div>
-                </div>
-
-                {/* Expanded Content */}
-                <AnimatePresence>
-                  {expandedCompany === company.id && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="border-t border-border"
-                    >
-                      {editingCompany === company.id ? (
-                        <div className="p-4">
-                          <CompanyForm 
-                            formData={formData}
-                            setFormData={setFormData}
-                            updateFocusDistribution={updateFocusDistribution}
-                            updateGuideline={updateGuideline}
-                            onGenerateGuidelines={handleGenerateGuidelines}
-                            generatedGuidelines={generatedGuidelines}
-                          />
-                          <div className="flex gap-2 mt-4">
-                            <Button onClick={handleSaveEdit}>
-                              <Save className="w-4 h-4 mr-2" />
-                              Save Changes
-                            </Button>
-                            <Button variant="outline" onClick={() => { setEditingCompany(null); resetForm(); }}>
-                              <X className="w-4 h-4 mr-2" />
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-4 space-y-4">
-                          <Tabs defaultValue="jd">
-                            <TabsList className="grid w-full grid-cols-3">
-                              <TabsTrigger value="jd">
-                                <FileText className="w-4 h-4 mr-1" />
-                                JD
-                              </TabsTrigger>
-                              <TabsTrigger value="guidelines">
-                                <GraduationCap className="w-4 h-4 mr-1" />
-                                Guidelines
-                              </TabsTrigger>
-                              <TabsTrigger value="raw">
-                                <FileText className="w-4 h-4 mr-1" />
-                                Raw Input
-                              </TabsTrigger>
-                            </TabsList>
-                            
-                            <TabsContent value="jd" className="mt-4">
-                              <div className="bg-muted/30 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                                {company.jd}
-                              </div>
-                              <div className="grid grid-cols-4 gap-2 mt-4">
-                                <div className="p-2 rounded bg-blue-500/10 text-center">
-                                  <div className="text-xs text-muted-foreground">DSA</div>
-                                  <div className="font-semibold text-blue-500">{company.focusDistribution.dsa}%</div>
-                                </div>
-                                <div className="p-2 rounded bg-purple-500/10 text-center">
-                                  <div className="text-xs text-muted-foreground">Core CS</div>
-                                  <div className="font-semibold text-purple-500">{company.focusDistribution.coreCS}%</div>
-                                </div>
-                                <div className="p-2 rounded bg-green-500/10 text-center">
-                                  <div className="text-xs text-muted-foreground">System Design</div>
-                                  <div className="font-semibold text-green-500">{company.focusDistribution.systemDesign}%</div>
-                                </div>
-                                <div className="p-2 rounded bg-orange-500/10 text-center">
-                                  <div className="text-xs text-muted-foreground">HR</div>
-                                  <div className="font-semibold text-orange-500">{company.focusDistribution.hr}%</div>
-                                </div>
-                              </div>
-                            </TabsContent>
-                            
-                            <TabsContent value="guidelines" className="mt-4 space-y-2">
-                              {company.guidelines.length > 0 ? (
-                                <>
-                                  {company.guidelines.map((guideline, idx) => (
-                                    <div key={idx} className="flex items-start gap-2 p-2 rounded bg-primary/5 border border-primary/10">
-                                      <GraduationCap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                                      <p className="text-sm">{guideline}</p>
-                                    </div>
-                                  ))}
-                                  {!company.approved && (
-                                    <Button 
-                                      className="w-full mt-4"
-                                      onClick={() => handleApproveGuidelines(company.id)}
-                                    >
-                                      <Check className="w-4 h-4 mr-2" />
-                                      Approve & Publish Guidelines
-                                    </Button>
-                                  )}
-                                </>
-                              ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                  <GraduationCap className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                  <p>No guidelines added yet</p>
-                                </div>
-                              )}
-                            </TabsContent>
-                            
-                            <TabsContent value="raw" className="mt-4">
-                              {company.rawAlumniInput ? (
-                                <div className="bg-muted/30 rounded-lg p-4 text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                                  {company.rawAlumniInput}
-                                </div>
-                              ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                  <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                  <p>No raw alumni input stored</p>
-                                </div>
-                              )}
-                            </TabsContent>
-                          </Tabs>
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm line-clamp-3">{company.jd}</p>
+                {company.guidelines?.length ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Guidelines</p>
+                    {company.guidelines.slice(0, 3).map((guideline, index) => (
+                      <p key={`${company._id}-guideline-${index}`} className="text-sm">• {guideline}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
     </motion.div>
-  );
-}
-
-// Company Form Component
-function CompanyForm({ formData, setFormData, updateFocusDistribution, updateGuideline, onGenerateGuidelines, generatedGuidelines }) {
-  return (
-    <div className="space-y-6 py-4">
-      {/* Basic Info */}
-      <div className="space-y-2">
-        <Label>Company Name *</Label>
-        <Input
-          value={formData.name}
-          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-          placeholder="e.g., Google"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>City *</Label>
-          <Select 
-            value={formData.city} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, city: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select city" />
-            </SelectTrigger>
-            <SelectContent>
-              {CITIES.filter(c => c !== 'All Cities').map(city => (
-                <SelectItem key={city} value={city}>{city}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Industry *</Label>
-          <Select 
-            value={formData.industry} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select industry" />
-            </SelectTrigger>
-            <SelectContent>
-              {INDUSTRIES.map(industry => (
-                <SelectItem key={industry} value={industry}>{industry}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Company Website URL */}
-      <div className="space-y-2">
-        <Label className="flex items-center gap-2">
-          <ExternalLink className="w-4 h-4" />
-          Company Website / Careers Page URL
-        </Label>
-        <Input
-          value={formData.websiteUrl}
-          onChange={(e) => setFormData(prev => ({ ...prev, websiteUrl: e.target.value }))}
-          placeholder="https://careers.company.com"
-          type="url"
-        />
-        <p className="text-xs text-muted-foreground">
-          Students will see this as a "Visit Company Page" button
-        </p>
-      </div>
-
-     
-
-      {/* JD */}
-      <div className="space-y-2">
-        <Label>Job Description *</Label>
-        <Textarea
-          value={formData.jd}
-          onChange={(e) => setFormData(prev => ({ ...prev, jd: e.target.value }))}
-          placeholder="Paste the complete job description..."
-          className="min-h-[150px]"
-        />
-      </div>
-
-      {/* Interview Pattern & Focus */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Interview Pattern</Label>
-          <Select 
-            value={formData.interviewPattern} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, interviewPattern: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="DSA-heavy">DSA-heavy</SelectItem>
-              <SelectItem value="Tech-heavy">Tech-heavy</SelectItem>
-              <SelectItem value="HR-heavy">HR-heavy</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Focus Distribution */}
-      <div className="space-y-2">
-        <Label>Focus Distribution (%)</Label>
-        <div className="grid grid-cols-4 gap-4">
-          <div className="space-y-1">
-            <Label className="text-xs">DSA</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={formData.focusDistribution.dsa}
-              onChange={(e) => updateFocusDistribution('dsa', e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Core CS</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={formData.focusDistribution.coreCS}
-              onChange={(e) => updateFocusDistribution('coreCS', e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">System Design</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={formData.focusDistribution.systemDesign}
-              onChange={(e) => updateFocusDistribution('systemDesign', e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">HR</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={formData.focusDistribution.hr}
-              onChange={(e) => updateFocusDistribution('hr', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Raw Alumni Input */}
-      <div className="space-y-2 p-4 border border-primary/20 rounded-lg bg-primary/5">
-        <Label className="flex items-center gap-2">
-          <Wand2 className="w-4 h-4 text-primary" />
-          Raw Alumni Interview Communications
-        </Label>
-        <p className="text-xs text-muted-foreground">
-          Paste raw alumni interview experiences, messages, or notes. The system will generate structured guidelines from this input.
-        </p>
-        <Textarea
-          value={formData.rawAlumniInput}
-          onChange={(e) => setFormData(prev => ({ ...prev, rawAlumniInput: e.target.value }))}
-          placeholder="Paste raw alumni interview communications here...&#10;&#10;Example:&#10;- Had 4 rounds, first was DSA heavy with 2 medium LC problems&#10;- System design focused on scalability&#10;- HR asked about leadership experiences&#10;- Focus on graphs and DP for coding rounds"
-          className="min-h-[150px]"
-        />
-        <Button 
-          type="button" 
-          variant="outline" 
-          onClick={onGenerateGuidelines}
-          className="w-full"
-          disabled={!formData.rawAlumniInput.trim()}
-        >
-          <Sparkles className="w-4 h-4 mr-2" />
-          Generate Guidelines from Alumni Input
-        </Button>
-        
-        {generatedGuidelines && (
-          <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-3">
-            <h4 className="font-medium text-sm flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              Generated Summary
-            </h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div><span className="text-muted-foreground">Rounds:</span> {generatedGuidelines.rounds}</div>
-              <div><span className="text-muted-foreground">Difficulty:</span> {generatedGuidelines.difficulty}</div>
-            </div>
-            <div className="text-sm">
-              <span className="text-muted-foreground">Focus Areas:</span> {generatedGuidelines.focusAreas.join(', ')}
-            </div>
-            <div className="text-sm">
-              <span className="text-muted-foreground">Common Topics:</span> {generatedGuidelines.commonTopics.join(', ')}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Interview Preparation Guidelines */}
-      <div className="space-y-2">
-        <Label className="flex items-center gap-2">
-          <GraduationCap className="w-4 h-4" />
-          Interview Preparation Guidelines (7 points)
-        </Label>
-        <p className="text-xs text-muted-foreground mb-2">
-          These structured guidelines will be shown to students. Generated from raw alumni input or manually entered.
-        </p>
-        <div className="space-y-2">
-          {formData.guidelines.map((guideline, idx) => (
-            <Input
-              key={idx}
-              value={guideline}
-              onChange={(e) => updateGuideline(idx, e.target.value)}
-              placeholder={`Guideline ${idx + 1}...`}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Approval Status */}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div>
-          <Label>Publish Status</Label>
-          <p className="text-sm text-muted-foreground">
-            Approved guidelines will be visible to students
-          </p>
-        </div>
-        <Switch
-          checked={formData.approved}
-          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, approved: checked }))}
-        />
-      </div>
-    </div>
   );
 }

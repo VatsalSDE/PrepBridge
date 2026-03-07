@@ -127,7 +127,7 @@ export default function AdminLoginPage() {
             <div className="mt-6 p-4 rounded-lg bg-muted/50 text-center">
               <p className="text-xs text-muted-foreground mb-2">Demo Credentials:</p>
               <p className="text-sm font-mono">admin@prepbridge.com</p>
-              <p className="text-sm font-mono">admin123</p>
+              <p className="text-sm font-mono">Admin@123</p>
             </div>
           </CardContent>
         </Card>

@@ -3,6 +3,10 @@ const User = require("../models/User");
 const Company = require("../models/Company");
 const PostReport = require("../models/PostReport");
 const CommunityPost = require("../models/CommunityPost");
+const PostComment = require("../models/PostComment");
+const PostUpvote = require("../models/PostUpvote");
+const PostBookmark = require("../models/PostBookmark");
+const anonymousService = require("../services/anonymous.service");
 const analyticsService = require("../services/analytics.service");
 const { asyncHandler, AppError } = require("../middleware/errorHandler");
 
@@ -127,6 +131,85 @@ const generateGuidelines = asyncHandler(async (req, res) => {
 });
 
 // Moderation
+const getCommunityPosts = asyncHandler(async (req, res) => {
+  const page = Number(req.query.page || 1);
+  const limit = Number(req.query.limit || 20);
+  const skip = (page - 1) * limit;
+  const search = (req.query.search || "").trim();
+  const onlyReported = req.query.onlyReported === "true";
+
+  const query = {};
+  if (search) {
+    query.$or = [
+      { title: { $regex: search, $options: "i" } },
+      { content: { $regex: search, $options: "i" } },
+    ];
+  }
+  if (onlyReported) {
+    query.reportCount = { $gt: 0 };
+  }
+
+  const [posts, total] = await Promise.all([
+    CommunityPost.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    CommunityPost.countDocuments(query),
+  ]);
+
+  const postIds = posts.map((post) => post._id);
+  const userIds = posts.map((post) => post.userId);
+
+  const reportStats = postIds.length
+    ? await PostReport.aggregate([
+        { $match: { postId: { $in: postIds } } },
+        {
+          $group: {
+            _id: "$postId",
+            totalReports: { $sum: 1 },
+            pendingReports: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "pending"] }, 1, 0],
+              },
+            },
+          },
+        },
+      ])
+    : [];
+
+  const reportMap = new Map(reportStats.map((row) => [row._id.toString(), row]));
+  const identities = await anonymousService.getMultipleIdentities(userIds);
+
+  const data = posts.map((post, index) => {
+    const stats = reportMap.get(post._id.toString());
+    return {
+      ...post.toObject(),
+      authorName: identities[index]?.displayName || "Anonymous User",
+      totalReports: stats?.totalReports ?? post.reportCount ?? 0,
+      pendingReports: stats?.pendingReports ?? 0,
+    };
+  });
+
+  res.json({
+    success: true,
+    data,
+    pagination: { page, limit, total },
+  });
+});
+
+const deleteCommunityPost = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const post = await CommunityPost.findById(id);
+  if (!post) throw new AppError("Post not found", 404);
+
+  await Promise.all([
+    CommunityPost.findByIdAndDelete(id),
+    PostReport.deleteMany({ postId: id }),
+    PostComment.deleteMany({ postId: id }),
+    PostUpvote.deleteMany({ postId: id }),
+    PostBookmark.deleteMany({ postId: id }),
+  ]);
+
+  res.json({ success: true, message: "Post deleted" });
+});
+
 const getCommunityReports = asyncHandler(async (_req, res) => {
   const reports = await PostReport.find({})
     .populate("postId", "title content")
@@ -204,6 +287,8 @@ module.exports = {
   deleteCompany,
   approveCompany,
   generateGuidelines,
+  getCommunityPosts,
+  deleteCommunityPost,
   getCommunityReports,
   hidePost,
   unhidePost,

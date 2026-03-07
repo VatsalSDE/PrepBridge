@@ -26,6 +26,8 @@ router.patch("/companies/:id/approve", admin.approveCompany);
 router.post("/companies/:id/generate-guidelines", admin.generateGuidelines);
 
 // moderation
+router.get("/community/posts", admin.getCommunityPosts); //added this route during integration 
+router.delete("/community/posts/:id", admin.deleteCommunityPost); //added this route during integration 
 router.get("/community/reports", admin.getCommunityReports);
 router.patch("/community/posts/:id/hide", admin.hidePost);
 router.patch("/community/posts/:id/unhide", admin.unhidePost);

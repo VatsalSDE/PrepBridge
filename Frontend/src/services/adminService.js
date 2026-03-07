@@ -13,12 +13,118 @@ const adminService = {
     return apiRequest(`/admin/users?page=${page}&limit=${limit}`, { auth: true, authType: 'admin' });
   },
 
+  getUserDetails(userId) {
+    return apiRequest(`/admin/users/${userId}`, { auth: true, authType: 'admin' });
+  },
+
   banUser(userId) {
     return apiRequest(`/admin/users/${userId}/ban`, { method: 'PATCH', auth: true, authType: 'admin' });
   },
 
   unbanUser(userId) {
     return apiRequest(`/admin/users/${userId}/unban`, { method: 'PATCH', auth: true, authType: 'admin' });
+  },
+
+  getCompanies() {
+    return apiRequest('/admin/companies', { auth: true, authType: 'admin' });
+  },
+
+  createCompany(payload) {
+    return apiRequest('/admin/companies', {
+      method: 'POST',
+      auth: true,
+      authType: 'admin',
+      body: payload,
+    });
+  },
+
+  updateCompany(companyId, payload) {
+    return apiRequest(`/admin/companies/${companyId}`, {
+      method: 'PUT',
+      auth: true,
+      authType: 'admin',
+      body: payload,
+    });
+  },
+
+  deleteCompany(companyId) {
+    return apiRequest(`/admin/companies/${companyId}`, {
+      method: 'DELETE',
+      auth: true,
+      authType: 'admin',
+    });
+  },
+
+  approveCompany(companyId) {
+    return apiRequest(`/admin/companies/${companyId}/approve`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+    });
+  },
+
+  generateGuidelines(companyId, rawAlumniInput) {
+    return apiRequest(`/admin/companies/${companyId}/generate-guidelines`, {
+      method: 'POST',
+      auth: true,
+      authType: 'admin',
+      body: { rawAlumniInput },
+    });
+  },
+
+  getCommunityReports() {
+    return apiRequest('/admin/community/reports', { auth: true, authType: 'admin' });
+  },
+
+  getCommunityPosts(page = 1, limit = 20, search = '', onlyReported = false) {
+    const searchParams = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      search,
+      onlyReported: String(Boolean(onlyReported)),
+    });
+    return apiRequest(`/admin/community/posts?${searchParams.toString()}`, { auth: true, authType: 'admin' });
+  },
+
+  deleteCommunityPost(postId) {
+    return apiRequest(`/admin/community/posts/${postId}`, {
+      method: 'DELETE',
+      auth: true,
+      authType: 'admin',
+    });
+  },
+
+  hidePost(postId) {
+    return apiRequest(`/admin/community/posts/${postId}/hide`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+    });
+  },
+
+  unhidePost(postId) {
+    return apiRequest(`/admin/community/posts/${postId}/unhide`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+    });
+  },
+
+  resolveReport(reportId, actionTaken = 'hidden') {
+    return apiRequest(`/admin/reports/${reportId}/resolve`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+      body: { actionTaken },
+    });
+  },
+
+  dismissReport(reportId) {
+    return apiRequest(`/admin/reports/${reportId}/dismiss`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+    });
   },
 };
 

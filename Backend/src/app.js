@@ -20,9 +20,11 @@ const app = express();
 const defaultAllowedOrigins = [
   'http://localhost:8080',
   'http://localhost:5173',
+  'http://127.0.0.1:8080',
+  'http://127.0.0.1:5173',
 ];
 
-const configuredOrigins = (process.env.FRONTEND_URL || '')
+const configuredOrigins = `${process.env.FRONTEND_URL || ''},${process.env.FRONTEND_URLS || ''}`
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -31,6 +33,35 @@ const allowedOrigins = Array.from(new Set([
   ...defaultAllowedOrigins,
   ...configuredOrigins,
 ]));
+
+const isDevelopment = (process.env.NODE_ENV || '').toLowerCase() !== 'production';
+
+const isPrivateIpv4 = (host) => {
+  const parts = host.split('.').map((value) => Number(value));
+  if (parts.length !== 4 || parts.some((value) => Number.isNaN(value) || value < 0 || value > 255)) {
+    return false;
+  }
+
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 127) return true;
+  return false;
+};
+
+const isAllowedDevLanOrigin = (origin) => {
+  try {
+    const url = new URL(origin);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+
+    const host = (url.hostname || '').toLowerCase();
+    if (host === 'localhost') return true;
+    if (host.endsWith('.local')) return true;
+    return isPrivateIpv4(host);
+  } catch {
+    return false;
+  }
+};
 
 // ================================
 // MIDDLEWARE
@@ -48,6 +79,11 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Development convenience: allow local/LAN frontend origins.
+    if (isDevelopment && isAllowedDevLanOrigin(origin)) {
       return callback(null, true);
     }
 

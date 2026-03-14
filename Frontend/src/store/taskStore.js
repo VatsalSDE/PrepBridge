@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import taskService from '@/services/taskService';
+import useProfileStore from '@/store/profileStore';
 
 const normalizeTask = (task) => ({
   id: task._id || task.id,
@@ -70,6 +71,11 @@ const useTaskStore = create(
           const response = await taskService.toggleTask(taskId);
           const updatedTask = normalizeTask(response?.data || {});
 
+          // Find the previous state to determine the direction of the toggle
+          const prevTask = useTaskStore.getState().tasks.find((t) => t.id === taskId);
+          const wasCompleted = prevTask?.completed ?? false;
+          const nowCompleted = updatedTask.completed;
+
           set((state) => ({
             tasks: state.tasks.map((task) =>
               task.id === taskId ? updatedTask : task
@@ -80,6 +86,11 @@ const useTaskStore = create(
             isLoading: false,
             error: null,
           }));
+
+          // Keep profile stats in sync without an extra API call
+          if (nowCompleted !== wasCompleted) {
+            useProfileStore.getState().updateTasksCompleted(nowCompleted ? 1 : -1);
+          }
 
           return updatedTask;
         } catch (error) {

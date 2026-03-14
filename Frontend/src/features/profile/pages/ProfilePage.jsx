@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   User, Mail, Building2, GraduationCap, Target, Code2,
   Github, Globe, FileText, Edit3, Save, X, Plus, Trash2,
-  Award, Calendar, TrendingUp, Upload, Clock
+  Award, TrendingUp, Upload, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,31 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { containerVariants, itemVariants } from '@/utils/animations';
-import { TARGET_ROLES, MOCK_USER } from '@/utils/constants';
+import { TARGET_ROLES } from '@/utils/constants';
+import useProfileStore from '@/store/profileStore';
+import profileService from '@/services/profileService';
+import { API_BASE_URL } from '@/services/api';
+
+const DEFAULT_PROFILE = {
+  id: '',
+  name: '',
+  email: '',
+  college: '',
+  branch: '',
+  year: 1,
+  cgpa: 0,
+  targetRole: TARGET_ROLES[0],
+  streak: 0,
+  longestStreak: 0,
+  tasksCompleted: 0,
+  avgProductivity: 0,
+  weeklyStudyGoal: 25,
+  dailyTaskGoal: 6,
+  skills: [],
+  projects: [],
+  codingProfiles: { leetcode: '', codolio: '', gfg: '' },
+  resumeUrl: '',
+};
 
 const AVAILABLE_SKILLS = [
   'JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'Java',
@@ -23,32 +47,80 @@ const AVAILABLE_SKILLS = [
 ];
 
 export default function ProfilePage() {
+  const fetchProfile = useProfileStore((state) => state.fetchProfile);
+  const saveProfile = useProfileStore((state) => state.saveProfile);
+  const uploadResume = useProfileStore((state) => state.uploadResume);
+  const profileFromStore = useProfileStore((state) => state.profile);
+  const isLoading = useProfileStore((state) => state.isLoading);
+
   const [isEditing, setIsEditing] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', url: '' });
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [resumeFile, setResumeFile] = useState(null);
+  const [isResumeUploading, setIsResumeUploading] = useState(false);
+  const [isResumeOpening, setIsResumeOpening] = useState(false);
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
+  const [resumePreviewUrl, setResumePreviewUrl] = useState('');
   const fileInputRef = useRef(null);
-  const [profile, setProfile] = useState({
-    ...MOCK_USER,
-    weeklyStudyGoal: 25,
-    dailyTaskGoal: 6,
-    skills: ['JavaScript', 'React', 'Node.js', 'Python', 'SQL', 'Git'],
-    projects: [
-      { name: 'E-Commerce Platform', url: 'https://github.com/alex/ecommerce' },
-      { name: 'Task Manager App', url: 'https://github.com/alex/taskmanager' }
-    ],
-    codingProfiles: {
-      leetcode: 'alex_codes',
-      codolio: 'alex_johnson',
-      gfg: 'alexj'
-    }
-  });
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
 
-  const handleSave = () => {
-    setIsEditing(false);
-    setShowProjectForm(false);
-    toast.success('Profile updated successfully!');
-    // Save to backend
+  useEffect(() => {
+    return () => {
+      if (resumePreviewUrl) {
+        URL.revokeObjectURL(resumePreviewUrl);
+      }
+    };
+  }, [resumePreviewUrl]);
+
+  useEffect(() => {
+    fetchProfile().catch((error) => {
+      toast.error(error.message || 'Failed to load profile');
+    });
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    setProfile({
+      ...DEFAULT_PROFILE,
+      ...profileFromStore,
+      codingProfiles: {
+        ...DEFAULT_PROFILE.codingProfiles,
+        ...(profileFromStore?.codingProfiles || {}),
+      },
+      skills: profileFromStore?.skills || [],
+      projects: profileFromStore?.projects || [],
+    });
+
+    if (profileFromStore?.resumeUrl) {
+      const fallbackName = String(profileFromStore.resumeUrl).split('/').pop() || 'resume.pdf';
+      setResumeFile({ name: fallbackName, size: 0 });
+    } else {
+      setResumeFile(null);
+    }
+  }, [profileFromStore]);
+
+  const handleSave = async () => {
+    try {
+      const payload = {
+        name: profile.name,
+        college: profile.college,
+        branch: profile.branch,
+        year: profile.year,
+        cgpa: profile.cgpa,
+        targetRole: profile.targetRole,
+        skills: profile.skills,
+        projects: profile.projects,
+        codingProfiles: profile.codingProfiles,
+        weeklyStudyGoal: profile.weeklyStudyGoal,
+        dailyTaskGoal: profile.dailyTaskGoal,
+      };
+
+      await saveProfile(payload);
+      setIsEditing(false);
+      setShowProjectForm(false);
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to update profile');
+    }
   };
 
   const addSkill = (skill) => {
@@ -80,14 +152,23 @@ export default function ProfilePage() {
     toast.success('Project removed');
   };
 
-  const handleResumeUpload = (e) => {
+  const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.type === 'application/pdf') {
         if (file.size <= 5 * 1024 * 1024) { // 5MB limit
-          setResumeFile(file);
-          toast.success(`Resume "${file.name}" uploaded successfully!`);
-          // Upload to backend
+          try {
+            setIsResumeUploading(true);
+            await uploadResume(file);
+            setResumeFile(file);
+            toast.success(`Resume "${file.name}" uploaded successfully!`);
+          } catch (error) {
+            toast.error(error.message || 'Failed to upload resume');
+          } finally {
+            setIsResumeUploading(false);
+            // Allow selecting the same file again if needed.
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }
         } else {
           toast.error('File size should be less than 5MB');
         }
@@ -103,6 +184,88 @@ export default function ProfilePage() {
     if (year === 3) return '3rd';
     if (year === 4) return '4th';
     return year;
+  };
+
+  const getResumeUrl = () => {
+    const raw = String(profile?.resumeUrl || '').trim();
+    if (!raw) return '';
+
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith('//')) return `https:${raw}`;
+
+    // Support relative API paths (e.g. /api/users/resume/view).
+    if (raw.startsWith('/')) {
+      try {
+        return new URL(raw, API_BASE_URL).toString();
+      } catch {
+        return '';
+      }
+    }
+
+    // Legacy values might be saved without protocol
+    if (raw.includes('res.cloudinary.com')) {
+      return `https://${raw.replace(/^\/+/, '')}`;
+    }
+
+    // Unknown non-URL value (e.g. old filename-only records)
+    return '';
+  };
+
+  const getResumeViewerUrl = () => {
+    const rawUrl = getResumeUrl();
+    if (!rawUrl) return '';
+    if (!/^https?:\/\//i.test(rawUrl)) return '';
+    return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(rawUrl)}`;
+  };
+
+  const handleViewResume = async (e) => {
+    e.preventDefault();
+    try {
+      setIsResumeOpening(true);
+      // Authenticated fetch from backend; preview locally in a modal.
+      const blob = await profileService.getResumeBlob();
+      const blobUrl = URL.createObjectURL(blob);
+      if (resumePreviewUrl) {
+        URL.revokeObjectURL(resumePreviewUrl);
+      }
+      setResumePreviewUrl(blobUrl);
+      setIsResumeModalOpen(true);
+    } catch (error) {
+      // Last fallback: try direct link if available.
+      const url = getResumeUrl();
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      toast.error(error.message || 'Unable to open resume');
+    } finally {
+      setIsResumeOpening(false);
+    }
+  };
+
+  const getProfileLinkMeta = (platform, value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+
+    const isFullUrl = /^https?:\/\//i.test(raw);
+    if (isFullUrl) {
+      return { href: raw, label: raw };
+    }
+
+    const handle = raw.replace(/^@/, '');
+
+    if (platform === 'leetcode') {
+      return { href: `https://leetcode.com/${handle}/`, label: `@${handle}` };
+    }
+
+    if (platform === 'codolio') {
+      return { href: `https://codolio.com/profile/${handle}`, label: `@${handle}` };
+    }
+
+    if (platform === 'gfg') {
+      return { href: `https://www.geeksforgeeks.org/user/${handle}/`, label: `@${handle}` };
+    }
+
+    return { href: raw, label: raw };
   };
 
   return (
@@ -123,7 +286,7 @@ export default function ProfilePage() {
             <Button variant="outline" onClick={() => setIsEditing(false)}>
               <X className="w-4 h-4 mr-2" /> Cancel
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} disabled={isLoading}>
               <Save className="w-4 h-4 mr-2" /> Save Changes
             </Button>
           </div>
@@ -148,7 +311,7 @@ export default function ProfilePage() {
             <CardContent className="space-y-4">
               <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-3xl font-bold text-white">
-                  {profile.name.split(' ').map(n => n[0]).join('')}
+                  {(profile.name || 'U').split(' ').map((part) => part[0]).join('')}
                 </div>
                 <div className="flex-1 grid md:grid-cols-2 gap-4">
                   <div>
@@ -159,14 +322,14 @@ export default function ProfilePage() {
                         onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                       />
                     ) : (
-                      <p className="text-foreground font-medium">{profile.name}</p>
+                      <p className="text-foreground font-medium">{profile.name || '-'}</p>
                     )}
                   </div>
                   <div>
                     <Label>Email</Label>
                     <p className="text-foreground flex items-center gap-2">
                       <Mail className="w-4 h-4 text-muted-foreground" />
-                      {profile.email}
+                      {profile.email || '-'}
                     </p>
                   </div>
                 </div>
@@ -194,7 +357,7 @@ export default function ProfilePage() {
                   ) : (
                     <p className="text-foreground flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-muted-foreground" />
-                      {profile.college}
+                      {profile.college || '-'}
                     </p>
                   )}
                 </div>
@@ -206,7 +369,7 @@ export default function ProfilePage() {
                       onChange={(e) => setProfile({ ...profile, branch: e.target.value })}
                     />
                   ) : (
-                    <p className="text-foreground">{profile.branch}</p>
+                    <p className="text-foreground">{profile.branch || '-'}</p>
                   )}
                 </div>
                 <div>
@@ -226,7 +389,7 @@ export default function ProfilePage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-foreground">{getYearSuffix(profile.year)} Year</p>
+                    <p className="text-foreground">{getYearSuffix(profile.year || 1)} Year</p>
                   )}
                 </div>
                 <div>
@@ -240,7 +403,7 @@ export default function ProfilePage() {
                       onChange={(e) => setProfile({ ...profile, cgpa: parseFloat(e.target.value) })}
                     />
                   ) : (
-                    <p className="text-foreground font-semibold text-lg">{profile.cgpa}/10</p>
+                    <p className="text-foreground font-semibold text-lg">{profile.cgpa ?? 0}/10</p>
                   )}
                 </div>
               </div>
@@ -376,9 +539,9 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-3 gap-4 items-start">
                 <div>
-                  <Label>LeetCode</Label>
+                  <Label className="block mb-1">LeetCode</Label>
                   {isEditing ? (
                     <Input
                       value={profile.codingProfiles.leetcode}
@@ -388,11 +551,25 @@ export default function ProfilePage() {
                       })}
                     />
                   ) : (
-                    <p className="text-foreground">@{profile.codingProfiles.leetcode}</p>
+                    (() => {
+                      const link = getProfileLinkMeta('leetcode', profile.codingProfiles.leetcode);
+                      return link ? (
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block max-w-full break-words whitespace-normal text-primary hover:underline"
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <p className="text-muted-foreground">-</p>
+                      );
+                    })()
                   )}
                 </div>
                 <div>
-                  <Label>Codolio</Label>
+                  <Label className="block mb-1">Codolio</Label>
                   {isEditing ? (
                     <Input
                       value={profile.codingProfiles.codolio}
@@ -402,11 +579,25 @@ export default function ProfilePage() {
                       })}
                     />
                   ) : (
-                    <p className="text-foreground">@{profile.codingProfiles.codolio}</p>
+                    (() => {
+                      const link = getProfileLinkMeta('codolio', profile.codingProfiles.codolio);
+                      return link ? (
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block max-w-full break-words whitespace-normal text-primary hover:underline"
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <p className="text-muted-foreground">-</p>
+                      );
+                    })()
                   )}
                 </div>
                 <div>
-                  <Label>GeeksforGeeks</Label>
+                  <Label className="block mb-1">GeeksforGeeks</Label>
                   {isEditing ? (
                     <Input
                       value={profile.codingProfiles.gfg}
@@ -416,7 +607,21 @@ export default function ProfilePage() {
                       })}
                     />
                   ) : (
-                    <p className="text-foreground">@{profile.codingProfiles.gfg}</p>
+                    (() => {
+                      const link = getProfileLinkMeta('gfg', profile.codingProfiles.gfg);
+                      return link ? (
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block max-w-full break-words whitespace-normal text-primary hover:underline"
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <p className="text-muted-foreground">-</p>
+                      );
+                    })()
                   )}
                 </div>
               </div>
@@ -547,6 +752,31 @@ export default function ProfilePage() {
                       <p className="text-xs text-muted-foreground">
                         {(resumeFile.size / 1024).toFixed(2)} KB
                       </p>
+                      {profile.resumeUrl && (
+                        <div className="flex items-center gap-3 mt-1">
+                          <a
+                            href={getResumeUrl() || '#'}
+                            onClick={handleViewResume}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            {isResumeOpening ? 'Opening resume...' : 'View uploaded resume'}
+                          </a>
+                          {getResumeViewerUrl() && (
+                            <a
+                              href={getResumeUrl() || '#'}
+                              onClick={handleViewResume}
+                              className="text-xs text-muted-foreground hover:underline"
+                            >
+                              Open in viewer
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {!getResumeUrl() && profile.resumeUrl && (
+                        <p className="text-xs text-destructive mt-1">
+                          Resume link is invalid. Please replace and upload again.
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -554,16 +784,23 @@ export default function ProfilePage() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
+                      disabled={isResumeUploading}
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <Upload className="w-4 h-4 mr-2" /> Replace
+                      <Upload className="w-4 h-4 mr-2" /> {isResumeUploading ? 'Uploading...' : 'Replace'}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        setResumeFile(null);
-                        toast.success('Resume removed');
+                      onClick={async () => {
+                        try {
+                          await saveProfile({ resumeUrl: '' });
+                          setResumeFile(null);
+                          setProfile((prev) => ({ ...prev, resumeUrl: '' }));
+                          toast.success('Resume removed');
+                        } catch (error) {
+                          toast.error(error.message || 'Failed to remove resume');
+                        }
                       }}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -577,9 +814,10 @@ export default function ProfilePage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={isResumeUploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Upload className="w-4 h-4 mr-2" /> Upload Resume
+                    <Upload className="w-4 h-4 mr-2" /> {isResumeUploading ? 'Uploading...' : 'Upload Resume'}
                   </Button>
                 </div>
               )}
@@ -620,6 +858,37 @@ export default function ProfilePage() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Local Resume Preview Modal */}
+      {isResumeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 p-4 md:p-8">
+          <div className="mx-auto h-full max-w-5xl rounded-xl bg-background shadow-xl border border-border flex flex-col">
+            <div className="flex items-center justify-between p-3 border-b border-border">
+              <h3 className="font-semibold">Resume Preview</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsResumeModalOpen(false)}
+              >
+                <X className="w-4 h-4 mr-1" /> Close
+              </Button>
+            </div>
+            <div className="flex-1 p-2">
+              {resumePreviewUrl ? (
+                <iframe
+                  src={resumePreviewUrl}
+                  title="Resume Preview"
+                  className="w-full h-full rounded-md border border-border"
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                  Resume preview unavailable.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

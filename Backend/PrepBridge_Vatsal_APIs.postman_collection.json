@@ -357,7 +357,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resumeUrl\": \"https://cloudinary.com/vatsal-resume.pdf\"\n}"
+              "raw": "{\n  \"resumeUrl\": \"https://example.com/resume.pdf\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/users/resume",

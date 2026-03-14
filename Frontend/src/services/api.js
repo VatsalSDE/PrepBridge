@@ -79,4 +79,77 @@ export const apiRequest = async (path, options = {}) => {
   return response.json();
 };
 
+/**
+ * Upload a file as multipart/form-data.
+ * The Content-Type header is intentionally omitted so the browser sets the
+ * correct boundary for the FormData body.
+ */
+export const apiUpload = async (path, formData, authType = 'user') => {
+  const token = getStoredToken(authType);
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Upload timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    await normalizeError(response);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+};
+
+/**
+ * Request binary data as Blob from an authenticated endpoint.
+ */
+export const apiRequestBlob = async (path, options = {}) => {
+  const {
+    method = 'GET',
+    auth = false,
+    authType = 'user',
+    headers = {},
+  } = options;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: buildHeaders(auth, headers, authType),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Resume loading timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    await normalizeError(response);
+  }
+
+  return response.blob();
+};
+
 export { API_BASE_URL };

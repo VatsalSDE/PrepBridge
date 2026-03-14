@@ -4,7 +4,8 @@ const { protect } = require('../middleware/auth.middleware');
 const {
   getProfile,
   updateProfile,
-  uploadResume
+  uploadResume,
+  viewResume,
 } = require('../controllers/user.controller');
 
 router.use(protect);
@@ -14,5 +15,6 @@ router.route('/profile')
   .put(updateProfile);
 
 router.post('/resume', uploadResume);
+router.get('/resume/view', viewResume);
 
 module.exports = router;

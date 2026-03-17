@@ -88,8 +88,21 @@ const DailyPlanningPage = () => {
     return PRIORITY_LEVELS.find(p => p.id === priorityId) || PRIORITY_LEVELS[1];
   };
 
+  const isTaskCompletionLocked = (task) => {
+    if (!task || task.completed) return false;
+    const deadline = new Date(task.date || new Date());
+    deadline.setHours(23, 59, 59, 999);
+    return Date.now() > deadline.getTime();
+  };
+
   const toggleTask = (taskId) => {
     const task = tasks.find((currentTask) => currentTask.id === taskId);
+
+    if (task && isTaskCompletionLocked(task)) {
+      toast.error('Deadline passed. This task can only be marked complete before 11:59 PM.');
+      return;
+    }
+
     toggleTaskStatus(taskId)
       .then((updatedTask) => {
         if (updatedTask?.completed && !task?.completed) {
@@ -372,7 +385,8 @@ const DailyPlanningPage = () => {
                       const category = getCategoryInfo(task.category);
                       const priority = getPriorityInfo(task.priority);
                       const isActiveForTimer = task.id === activeTaskForTimer;
-                      
+                      const completionLocked = isTaskCompletionLocked(task);
+
                       return (
                         <motion.div
                           key={task.id}
@@ -397,10 +411,14 @@ const DailyPlanningPage = () => {
                           {/* Checkbox */}
                           <button
                             onClick={() => toggleTask(task.id)}
+                            disabled={completionLocked}
+                            title={completionLocked ? 'Deadline passed (11:59 PM)' : 'Toggle completion'}
                             className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                              task.completed 
-                                ? 'bg-success border-success' 
-                                : 'border-muted-foreground/30 hover:border-primary'
+                              task.completed
+                                ? 'bg-success border-success'
+                                : completionLocked
+                                  ? 'border-muted-foreground/20 cursor-not-allowed opacity-50'
+                                  : 'border-muted-foreground/30 hover:border-primary'
                             }`}
                           >
                             {task.completed && (
@@ -432,6 +450,11 @@ const DailyPlanningPage = () => {
                                 <Clock className="h-3 w-3" />
                                 {task.estimatedTime}m
                               </span>
+                              {completionLocked && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+                                  Deadline passed
+                                </span>
+                              )}
                             </div>
                           </div>
 

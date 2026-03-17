@@ -125,6 +125,16 @@ exports.toggleTask = asyncHandler(async (req, res) => {
     throw new AppError('Not authorized', 403);
   }
 
+  const isCompleting = !task.completed;
+  if (isCompleting) {
+    const completionDeadline = new Date(task.date);
+    completionDeadline.setHours(23, 59, 59, 999);
+
+    if (Date.now() > completionDeadline.getTime()) {
+      throw new AppError('Task completion deadline passed. You can only mark this task complete before 11:59 PM of its scheduled day.', 400);
+    }
+  }
+
   task.completed = !task.completed;
   task.completedAt = task.completed ? new Date() : null;
   await task.save();

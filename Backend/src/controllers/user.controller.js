@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Task = require('../models/Task');
 const UserStreak = require('../models/UserStreak');
 const ActivityLog = require('../models/ActivityLog');
+const JDAnalysis = require('../models/JDAnalysis');
 const mongoose = require('mongoose');
 const fs = require('fs/promises');
 const path = require('path');
@@ -159,6 +160,126 @@ exports.uploadResume = (req, res, next) => {
     }
   });
 };
+
+// Dashboard summary – lightweight snapshot for the main user dashboard
+exports.getDashboardSummary = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  // last 7 days (today inclusive)
+  const sevenDaysAgo = new Date(todayStart);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+  // previous 7 days (for comparison)
+  const fourteenDaysAgo = new Date(todayStart);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+  const eightDaysAgo = new Date(todayStart);
+  eightDaysAgo.setDate(eightDaysAgo.getDate() - 7);
+
+  const [todayTasks, weeklyTasks, prevWeekTasks, streakDoc, user, latestJD] = await Promise.all([
+    Task.find({ userId, date: { $gte: todayStart, $lte: todayEnd } })
+      .select('completed category estimatedTime actualTime title priority'),
+    Task.find({ userId, date: { $gte: sevenDaysAgo, $lte: todayEnd } })
+      .select('date completed category estimatedTime actualTime'),
+    Task.find({ userId, date: { $gte: fourteenDaysAgo, $lte: eightDaysAgo } })
+      .select('completed estimatedTime actualTime'),
+    UserStreak.findOne({ userId }).select('currentStreak longestStreak'),
+    User.findById(userId).select('weeklyStudyGoal dailyTaskGoal'),
+    JDAnalysis.findOne({ userId }).sort({ createdAt: -1 }).select('matchScore missingSkills company').lean(),
+  ]);
+
+  // ── Today's stats ─────────────────────────────────────────────
+  const todayTotal = todayTasks.length;
+  const todayCompleted = todayTasks.filter(t => t.completed).length;
+  const todayProductivity = todayTotal > 0 ? Math.round((todayCompleted / todayTotal) * 100) : 0;
+
+  // ── Weekly hours by day ────────────────────────────────────────
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weeklyByDay = [];
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = new Date(todayStart);
+    dayStart.setDate(dayStart.getDate() - i);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const dayTasks = weeklyTasks.filter(t => {
+      const d = new Date(t.date);
+      return d >= dayStart && d <= dayEnd;
+    });
+
+    const minutesSpent = dayTasks.reduce((sum, t) => {
+      if (!t.completed) return sum;
+      return sum + (t.actualTime || t.estimatedTime || 0);
+    }, 0);
+
+    weeklyByDay.push({
+      day: DAYS[dayStart.getDay()],
+      date: dayStart.toISOString(),
+      hours: Math.round((minutesSpent / 60) * 10) / 10,
+      completedTasks: dayTasks.filter(t => t.completed).length,
+      totalTasks: dayTasks.length,
+    });
+  }
+
+  // ── Category breakdown (this week, completed tasks) ────────────
+  const categoryMins = { dsa: 0, 'core-cs': 0, development: 0, aptitude: 0, 'soft-skills': 0, 'mock-interview': 0, project: 0 };
+  weeklyTasks.filter(t => t.completed).forEach(t => {
+    const mins = t.actualTime || t.estimatedTime || 0;
+    if (t.category && categoryMins[t.category] !== undefined) {
+      categoryMins[t.category] += mins;
+    }
+  });
+
+  const totalCategoryMins = Object.values(categoryMins).reduce((a, b) => a + b, 0);
+  const pct = (key) => totalCategoryMins > 0 ? Math.round((categoryMins[key] / totalCategoryMins) * 100) : 0;
+  const categoryBreakdown = {
+    dsa: pct('dsa'),
+    coreCs: pct('core-cs'),
+    development: pct('development'),
+    aptitude: pct('aptitude'),
+  };
+
+  // ── Weekly hours totals ────────────────────────────────────────
+  const weeklyTotalHours = Math.round(weeklyByDay.reduce((sum, d) => sum + d.hours, 0) * 10) / 10;
+  const lastWeekTotalHours = Math.round(
+    (prevWeekTasks.reduce((sum, t) => {
+      if (!t.completed) return sum;
+      return sum + (t.actualTime || t.estimatedTime || 0);
+    }, 0) / 60) * 10
+  ) / 10;
+
+  res.json({
+    success: true,
+    data: {
+      today: {
+        totalTasks: todayTotal,
+        completedTasks: todayCompleted,
+        productivity: todayProductivity,
+      },
+      streak: {
+        current: streakDoc?.currentStreak || 0,
+        longest: streakDoc?.longestStreak || 0,
+      },
+      weekly: {
+        days: weeklyByDay,
+        totalHours: weeklyTotalHours,
+        lastWeekHours: lastWeekTotalHours,
+        goal: user?.weeklyStudyGoal || 25,
+      },
+      categoryBreakdown,
+      latestJD: latestJD ? {
+        score: latestJD.matchScore,
+        missingCount: (latestJD.missingSkills || []).length,
+        company: latestJD.company || 'Recent',
+      } : null,
+    },
+  });
+});
 
 // View resume as inline PDF through backend (auth protected)
 exports.viewResume = asyncHandler(async (req, res) => {

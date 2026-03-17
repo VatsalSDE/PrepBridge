@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Flame,
   TrendingUp,
@@ -19,247 +19,201 @@ import {
   Shield,
   AlertCircle,
   Crosshair,
-  Sparkles
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import useTaskStore from '@/store/taskStore';
+import dashboardService from '@/services/dashboardService';
+import taskService from '@/services/taskService';
 import useAuthStore from '@/store/authStore';
 import { getEncouragementMessage, getStreakMessage } from '@/utils/helpers';
 
-// ─── Animated Count-Up Hook ─────────────────────────────────────
-function useCountUp(end, duration = 1000, delay = 0) {
-  const [count, setCount] = useState(0);
-  const startTimeRef = useRef(null);
-  const animFrameRef = useRef(null);
+const AUTO_REFRESH_MS = 20000;
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      const animate = (timestamp) => {
-        if (!startTimeRef.current) startTimeRef.current = timestamp;
-        const elapsed = timestamp - startTimeRef.current;
-        const progress = Math.min(elapsed / duration, 1);
-        // Ease-out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setCount(Math.round(eased * end));
-        if (progress < 1) {
-          animFrameRef.current = requestAnimationFrame(animate);
-        }
-      };
-      animFrameRef.current = requestAnimationFrame(animate);
-    }, delay);
-
-    return () => {
-      clearTimeout(timeout);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [end, duration, delay]);
-
-  return count;
-}
-
-// ─── Animated Stat Value Component ──────────────────────────────
-function AnimatedStatValue({ value, suffix = '', delay = 0 }) {
-  const numericValue = parseInt(value) || 0;
-  const animatedValue = useCountUp(numericValue, 1200, 300 + delay);
-  return <>{animatedValue}{suffix}</>;
-}
-
-// ─── Mock Data ──────────────────────────────────────────────────
-const foundationsData = {
-  dsa: 42,
-  coreCs: 28,
-  aptitude: 12,
-  systemDesign: 8,
-};
-const foundationsOverall = Math.round(
-  (foundationsData.dsa + foundationsData.coreCs + foundationsData.aptitude + foundationsData.systemDesign) / 4
-);
-
-const getPrepBalanceInsight = () => {
-  const entries = Object.entries(foundationsData);
-  const max = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
-  const min = entries.reduce((a, b) => (b[1] < a[1] ? b : a));
-  const labels = { dsa: 'DSA', coreCs: 'Core CS', aptitude: 'Aptitude', systemDesign: 'System Design' };
-  if (max[1] - min[1] > 20) {
-    return `Your preparation is ${labels[max[0]]}-heavy. ${labels[min[0]]} needs more consistency.`;
-  }
-  return 'Your preparation is well-balanced across all areas.';
+const formatSyncTime = (value) => {
+  if (!value) return 'Syncing...';
+  return new Date(value).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 };
 
-const getReadinessLabel = () => {
-  if (foundationsOverall >= 70) return { label: 'Interview Ready', color: 'text-success', bg: 'bg-success/10' };
-  if (foundationsOverall >= 35) return { label: 'Building Foundation', color: 'text-primary', bg: 'bg-primary/10' };
-  return { label: 'Early Stage', color: 'text-warning', bg: 'bg-warning/10' };
-};
-
-const getAttentionNeeded = () => {
-  const labels = { dsa: 'DSA', coreCs: 'Core CS', aptitude: 'Aptitude', systemDesign: 'System Design' };
-  const entries = Object.entries(foundationsData);
-  const min = entries.reduce((a, b) => (b[1] < a[1] ? b : a));
-  return `${labels[min[0]]} not practiced this week`;
-};
-
-const statsCards = [
-  {
-    title: "Today's Productivity",
-    getValue: (data) => data.productivity,
-    suffix: '%',
-    icon: TrendingUp,
-    color: 'text-success',
-    bgColor: 'bg-success/10',
-    description: (data) => getEncouragementMessage(data.productivity),
-    glowWhenHigh: true,
-  },
-  {
-    title: 'Current Streak',
-    getValue: (data) => data.streak,
-    suffix: ' days',
-    icon: Flame,
-    color: 'text-streak',
-    bgColor: 'bg-streak/10',
-    description: (data) => getStreakMessage(data.streak),
-    isStreak: true,
-  },
-  {
-    title: 'Foundations Progress',
-    getValue: () => foundationsOverall,
-    suffix: '%',
-    icon: Target,
-    color: 'text-accent',
-    bgColor: 'bg-accent/10',
-    description: () => 'Aggregated across all foundation areas',
-  },
-  {
-    title: 'Weekly Study Hours',
-    getValue: () => 18.5,
-    suffix: 'h',
-    icon: Clock,
-    color: 'text-primary',
-    bgColor: 'bg-primary/10',
-    description: () => 'of 25h weekly goal',
-  },
-];
-
-const quickActions = [
-  { label: 'Add Task', icon: Zap, path: '/planning', variant: 'hero' },
-  { label: 'View Calendar', icon: Calendar, path: '/calendar', variant: 'outline' },
-  { label: 'Continue Roadmap', icon: Target, path: '/roadmap', variant: 'outline' },
-];
-
-const todaysTasks = [
-  { id: 1, title: 'Solve 5 LeetCode problems (Arrays)', category: 'DSA', completed: true, estimatedTime: 90 },
-  { id: 2, title: 'Review DBMS Normalization', category: 'Core CS', completed: true, estimatedTime: 45 },
-  { id: 3, title: 'Build REST API for project', category: 'Development', completed: false, estimatedTime: 120 },
-  { id: 4, title: 'Practice verbal reasoning', category: 'Aptitude', completed: false, estimatedTime: 30 },
-];
-
-const weeklyBreakdown = [
-  { day: 'Mon', hours: 3.5, lastWeek: 2.5 },
-  { day: 'Tue', hours: 4.0, lastWeek: 3.5 },
-  { day: 'Wed', hours: 2.5, lastWeek: 4.0 },
-  { day: 'Thu', hours: 3.0, lastWeek: 2.0 },
-  { day: 'Fri', hours: 5.5, lastWeek: 3.0 },
-  { day: 'Sat', hours: 0, lastWeek: 1.5 },
-  { day: 'Sun', hours: 0, lastWeek: 0 },
-];
-
-// ─── Weekly Comparison ──────────────────────────────────────────
-function WeeklyComparison() {
-  const thisWeekTotal = weeklyBreakdown.reduce((sum, d) => sum + d.hours, 0);
-  const lastWeekTotal = weeklyBreakdown.reduce((sum, d) => sum + d.lastWeek, 0);
-  const diff = thisWeekTotal - lastWeekTotal;
-  const isUp = diff >= 0;
-
-  return (
-    <div className={`flex items-center gap-1 text-xs font-medium ${isUp ? 'text-success' : 'text-destructive'}`}>
-      {isUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-      <span>{Math.abs(diff).toFixed(1)}h vs last week</span>
-    </div>
-  );
-}
-
-// ─── Weekly Bar Tooltip ─────────────────────────────────────────
-function WeeklyBar({ day, heightPercent, isToday, hours, lastWeekHours, delay }) {
-  const [showTooltip, setShowTooltip] = useState(false);
-  const diff = hours - lastWeekHours;
-
-  return (
-    <div
-      className="flex flex-col items-center gap-1 flex-1 relative"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-    >
-      {/* Tooltip */}
-      {showTooltip && hours > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute -top-12 z-10 px-2.5 py-1.5 rounded-lg bg-foreground text-background text-xs font-medium shadow-lg whitespace-nowrap"
-        >
-          {hours}h
-          {diff !== 0 && (
-            <span className={diff > 0 ? 'text-green-300 ml-1' : 'text-red-300 ml-1'}>
-              ({diff > 0 ? '+' : ''}{diff.toFixed(1)}h)
-            </span>
-          )}
-        </motion.div>
-      )}
-
-      <span className="text-xs text-muted-foreground">{hours > 0 ? `${hours}h` : ''}</span>
-      <div className="w-full relative" style={{ height: '80px' }}>
-        <motion.div
-          initial={{ height: 0 }}
-          animate={{ height: `${heightPercent}%` }}
-          transition={{ delay: 0.5 + delay * 0.05, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className={`absolute bottom-0 w-full rounded-t-md cursor-pointer transition-colors ${isToday
-              ? 'bg-primary hover:bg-primary/90'
-              : 'bg-primary/30 hover:bg-primary/50'
-            }`}
-        />
-      </div>
-      <span className={`text-xs ${isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>{day.day}</span>
-    </div>
-  );
-}
-
-// ─── Dashboard Component ────────────────────────────────────────
 const DashboardPage = () => {
-  const streak = useTaskStore((state) => state.streak);
   const user = useAuthStore((state) => state.user);
 
-  const completedToday = todaysTasks.filter(t => t.completed).length;
-  const productivity = Math.round((completedToday / todaysTasks.length) * 100);
+  const [summary, setSummary] = useState(null);
+  const [todayTasks, setTodayTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
 
-  const statsData = {
-    productivity,
-    completed: completedToday,
-    total: todaysTasks.length,
-    streak,
+  const loadData = async (showLoader = false) => {
+    if (showLoader) setIsRefreshing(true);
+
+    try {
+      setError('');
+      const [summaryResponse, taskResponse] = await Promise.all([
+        dashboardService.getSummary(),
+        taskService.getTodayTasks(),
+      ]);
+      setSummary(summaryResponse?.data || null);
+      setTodayTasks(taskResponse?.data || []);
+      setLastSyncedAt(new Date());
+    } catch (loadError) {
+      setError(loadError.message || 'Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+      if (showLoader) setIsRefreshing(false);
+    }
   };
 
-  const maxHours = Math.max(...weeklyBreakdown.map(d => d.hours), 1);
-  const readiness = getReadinessLabel();
+  useEffect(() => {
+    loadData(true);
+
+    const interval = window.setInterval(() => {
+      loadData(false);
+    }, AUTO_REFRESH_MS);
+
+    const handleFocus = () => loadData(false);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadData(false);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  const productivity = summary?.today?.productivity || 0;
+  const streak = summary?.streak?.current || 0;
+  const todayCompleted = summary?.today?.completedTasks || 0;
+  const todayTotal = summary?.today?.totalTasks || 0;
+  const weeklyTotalHours = summary?.weekly?.totalHours || 0;
+  const weeklyGoal = summary?.weekly?.goal || 25;
+  const weeklyDays = summary?.weekly?.days || [];
+  const latestJD = summary?.latestJD;
+
+  const readiness = useMemo(() => {
+    const score = Math.round(((summary?.categoryBreakdown?.dsa || 0) + (summary?.categoryBreakdown?.coreCs || 0) + (summary?.categoryBreakdown?.development || 0) + (summary?.categoryBreakdown?.aptitude || 0)) / 4);
+    if (score >= 70) return { label: 'Interview Ready', color: 'text-success', bg: 'bg-success/10' };
+    if (score >= 35) return { label: 'Building Foundation', color: 'text-primary', bg: 'bg-primary/10' };
+    return { label: 'Early Stage', color: 'text-warning', bg: 'bg-warning/10' };
+  }, [summary]);
+
+  const prepBalanceInsight = useMemo(() => {
+    const map = {
+      dsa: summary?.categoryBreakdown?.dsa || 0,
+      coreCs: summary?.categoryBreakdown?.coreCs || 0,
+      development: summary?.categoryBreakdown?.development || 0,
+      aptitude: summary?.categoryBreakdown?.aptitude || 0,
+    };
+    const labels = { dsa: 'DSA', coreCs: 'Core CS', development: 'Development', aptitude: 'Aptitude' };
+    const entries = Object.entries(map);
+    const max = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+    const min = entries.reduce((a, b) => (b[1] < a[1] ? b : a));
+
+    if (max[1] - min[1] > 20) {
+      return `Your preparation is ${labels[max[0]]}-heavy. ${labels[min[0]]} needs more consistency.`;
+    }
+    return 'Your preparation is well-balanced across active areas this week.';
+  }, [summary]);
+
+  const attentionNeeded = useMemo(() => {
+    const map = {
+      dsa: summary?.categoryBreakdown?.dsa || 0,
+      coreCs: summary?.categoryBreakdown?.coreCs || 0,
+      development: summary?.categoryBreakdown?.development || 0,
+      aptitude: summary?.categoryBreakdown?.aptitude || 0,
+    };
+    const labels = { dsa: 'DSA', coreCs: 'Core CS', development: 'Development', aptitude: 'Aptitude' };
+    const min = Object.entries(map).reduce((a, b) => (b[1] < a[1] ? b : a));
+    return `${labels[min[0]]} needs more focus this week`;
+  }, [summary]);
+
+  const weeklyComparison = useMemo(() => {
+    const diff = (summary?.weekly?.totalHours || 0) - (summary?.weekly?.lastWeekHours || 0);
+    const isUp = diff >= 0;
+    return {
+      isUp,
+      text: `${Math.abs(diff).toFixed(1)}h vs last week`,
+    };
+  }, [summary]);
+
+  const maxHours = Math.max(...weeklyDays.map((d) => d.hours || 0), 1);
+
+  const quickActions = [
+    { label: 'Add Task', icon: Zap, path: '/planning', variant: 'hero' },
+    { label: 'View Calendar', icon: Calendar, path: '/calendar', variant: 'outline' },
+    { label: 'Continue Roadmap', icon: Target, path: '/roadmap', variant: 'outline' },
+  ];
+
+  const statsCards = [
+    {
+      title: "Today's Productivity",
+      value: `${productivity}%`,
+      icon: TrendingUp,
+      color: 'text-success',
+      bgColor: 'bg-success/10',
+      description: getEncouragementMessage(productivity),
+    },
+    {
+      title: 'Current Streak',
+      value: `${streak} days`,
+      icon: Flame,
+      color: 'text-streak',
+      bgColor: 'bg-streak/10',
+      description: getStreakMessage(streak),
+    },
+    {
+      title: 'Weekly Study Hours',
+      value: `${weeklyTotalHours}h`,
+      icon: Clock,
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
+      description: `of ${weeklyGoal}h weekly goal`,
+    },
+    {
+      title: 'Tasks Done Today',
+      value: `${todayCompleted}/${todayTotal}`,
+      icon: CheckCircle2,
+      color: 'text-accent',
+      bgColor: 'bg-accent/10',
+      description: todayTotal > 0 ? 'Keep the momentum going' : 'Plan your day to get started',
+    },
+  ];
+
+  if (isLoading && !summary) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading dashboard...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Welcome back, <span className="text-gradient-primary">{user?.name?.split(' ')[0] || 'Vatsal'}</span>! 👋
+          <h1 className="text-2xl font-bold text-foreground md:text-3xl">
+            Welcome back, <span className="text-gradient-primary">{user?.name?.split(' ')[0] || 'Learner'}</span>!
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Here's your preparation overview for today
-          </p>
+          <p className="mt-1 text-muted-foreground">Real-time preparation overview synced from your live data.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Last sync: {formatSyncTime(lastSyncedAt)}</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={isRefreshing}>
+            {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Refresh
+          </Button>
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
@@ -274,59 +228,36 @@ const DashboardPage = () => {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {error ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statsCards.map((stat, index) => {
           const Icon = stat.icon;
-          const rawValue = stat.getValue(statsData);
-          const isHighProductivity = stat.glowWhenHigh && statsData.productivity > 80;
           return (
             <motion.div
               key={stat.title}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: index * 0.08 }}
               whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <Card className={`card-hover hover:border-primary/30 cursor-pointer dark:card-glow ${isHighProductivity ? 'productivity-glow border-success/30' : ''
-                }`}>
+              <Card className="card-hover cursor-pointer hover:border-primary/30 dark:card-glow">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">{stat.title}</p>
-                      <motion.p
-                        className="text-2xl font-bold text-foreground mt-1"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                      >
-                        <AnimatedStatValue
-                          value={rawValue}
-                          suffix={stat.suffix}
-                          delay={index * 100}
-                        />
-                      </motion.p>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                        {stat.description(statsData)}
-                      </p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stat.value}</p>
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{stat.description}</p>
                     </div>
-                    <div className={`w-10 h-10 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                      {stat.isStreak ? (
-                        <motion.div
-                          animate={{
-                            scale: [1, 1.1, 1.05, 1.08, 1],
-                            rotate: [0, -3, 3, -2, 0],
-                          }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                          }}
-                        >
-                          <Icon className={`h-5 w-5 ${stat.color}`} />
-                        </motion.div>
-                      ) : (
-                        <Icon className={`h-5 w-5 ${stat.color}`} />
-                      )}
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${stat.bgColor}`}>
+                      <Icon className={`h-5 w-5 ${stat.color}`} />
                     </div>
                   </div>
                 </CardContent>
@@ -336,90 +267,73 @@ const DashboardPage = () => {
         })}
       </div>
 
-      {/* Insight Strip */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Prep Balance */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-          <Card className="h-full card-hover dark:card-glow">
-            <CardContent className="p-4 flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                <Brain className="h-4 w-4 text-accent" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Prep Balance</p>
-                <p className="text-sm text-foreground mt-1">{getPrepBalanceInsight()}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="card-hover h-full dark:card-glow">
+          <CardContent className="flex items-start gap-3 p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10">
+              <Brain className="h-4 w-4 text-accent" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prep Balance</p>
+              <p className="mt-1 text-sm text-foreground">{prepBalanceInsight}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Interview Readiness */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card className="h-full card-hover dark:card-glow">
-            <CardContent className="p-4 flex items-start gap-3">
-              <div className={`w-9 h-9 rounded-lg ${readiness.bg} flex items-center justify-center shrink-0`}>
-                <Shield className={`h-4 w-4 ${readiness.color}`} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Interview Readiness</p>
-                <p className={`text-sm font-semibold mt-1 ${readiness.color}`}>{readiness.label}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <Card className="card-hover h-full dark:card-glow">
+          <CardContent className="flex items-start gap-3 p-4">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${readiness.bg}`}>
+              <Shield className={`h-4 w-4 ${readiness.color}`} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Interview Readiness</p>
+              <p className={`mt-1 text-sm font-semibold ${readiness.color}`}>{readiness.label}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Attention Needed */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-          <Card className="h-full card-hover dark:card-glow border-warning/20">
-            <CardContent className="p-4 flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-warning/10 flex items-center justify-center shrink-0">
-                <AlertCircle className="h-4 w-4 text-warning" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Attention Needed</p>
-                <p className="text-sm text-foreground mt-1">{getAttentionNeeded()}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+        <Card className="card-hover h-full border-warning/20 dark:card-glow">
+          <CardContent className="flex items-start gap-3 p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10">
+              <AlertCircle className="h-4 w-4 text-warning" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attention Needed</p>
+              <p className="mt-1 text-sm text-foreground">{attentionNeeded}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* JD Readiness Insight - NEW */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card className="h-full card-hover dark:card-glow border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Crosshair className="h-4 w-4 text-primary" />
+        <Card className="card-hover h-full border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 dark:card-glow">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <Crosshair className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">JD Readiness</p>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-primary">{latestJD ? `${latestJD.score}%` : '--'}</span>
+                  <span className="text-xs text-muted-foreground">match</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">JD Readiness</p>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-lg font-bold text-primary">72%</span>
-                    <span className="text-xs text-muted-foreground">match</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-xs text-muted-foreground">3 skills missing</span>
-                    <Link to="/jd-matching">
-                      <span className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-0.5 transition-colors">
-                        Improve <ArrowRight className="h-3 w-3" />
-                      </span>
-                    </Link>
-                  </div>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {latestJD ? `${latestJD.missingCount} skills missing` : 'No JD analysis yet'}
+                  </span>
+                  <Link to="/jd-matching">
+                    <span className="flex items-center gap-0.5 text-xs font-medium text-primary transition-colors hover:text-primary/80">
+                      Improve <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </Link>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Today's Tasks Preview */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="lg:col-span-2"
-        >
+      <div className="grid gap-6 lg:grid-cols-3">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2">
           <Card className="dark:card-glow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-semibold">Today's Tasks</CardTitle>
@@ -431,146 +345,123 @@ const DashboardPage = () => {
               </Link>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Progress Summary */}
-              <div className="p-4 rounded-xl bg-secondary/50">
-                <div className="flex items-center justify-between mb-2">
+              <div className="rounded-xl bg-secondary/50 p-4">
+                <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">Daily Progress</span>
                   <span className="text-sm font-semibold text-primary">{productivity}%</span>
                 </div>
                 <Progress value={productivity} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {completedToday} of {todaysTasks.length} tasks completed
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">{todayCompleted} of {todayTotal} tasks completed</p>
               </div>
 
-              {/* Task List */}
               <div className="space-y-3">
-                {todaysTasks.map((task, index) => (
+                {todayTasks.length > 0 ? todayTasks.map((task, index) => (
                   <motion.div
-                    key={task.id}
+                    key={task._id || task.id || `${task.title}-${index}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + index * 0.1 }}
-                    className={`flex items-center gap-4 p-3 rounded-lg border transition-all duration-200 ${task.completed
-                        ? 'bg-success/5 border-success/20'
-                        : 'bg-card border-border hover:border-primary/30'
-                      }`}
+                    transition={{ delay: 0.2 + index * 0.05 }}
+                    className={`flex items-center gap-4 rounded-lg border p-3 transition-all duration-200 ${
+                      task.completed ? 'border-success/20 bg-success/5' : 'border-border bg-card hover:border-primary/30'
+                    }`}
                   >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${task.completed
-                        ? 'bg-success border-success'
-                        : 'border-muted-foreground/30'
-                      }`}>
-                      {task.completed && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: 'spring', stiffness: 300 }}
-                        >
-                          <CheckCircle2 className="h-3 w-3 text-success-foreground" />
-                        </motion.div>
-                      )}
+                    <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${task.completed ? 'border-success bg-success' : 'border-muted-foreground/30'}`}>
+                      {task.completed ? <CheckCircle2 className="h-3 w-3 text-success-foreground" /> : null}
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${task.completed ? 'text-muted-foreground line-through' : 'text-foreground'
-                        }`}>
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-sm font-medium ${task.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
                         {task.title}
                       </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                          {task.category}
-                        </span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <div className="mt-0.5 flex items-center gap-2">
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{task.category}</span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          {task.estimatedTime}m
+                          {task.estimatedTime || task.actualTime || 0}m
                         </span>
                       </div>
                     </div>
                   </motion.div>
-                ))}
+                )) : (
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    No tasks for today yet. Add one from Daily Planning.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Right Column */}
         <div className="space-y-6">
-          {/* Weekly Study Chart */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Card className="dark:card-glow">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-semibold">This Week's Study</CardTitle>
-                  <WeeklyComparison />
+          <Card className="dark:card-glow">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold">This Week's Study</CardTitle>
+                <div className={`flex items-center gap-1 text-xs font-medium ${weeklyComparison.isUp ? 'text-success' : 'text-destructive'}`}>
+                  {weeklyComparison.isUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                  <span>{weeklyComparison.text}</span>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between gap-2 h-32">
-                  {weeklyBreakdown.map((day, idx) => {
-                    const heightPercent = maxHours > 0 ? (day.hours / maxHours) * 100 : 0;
-                    const isToday = idx === new Date().getDay() - 1;
-                    return (
-                      <WeeklyBar
-                        key={day.day}
-                        day={day}
-                        heightPercent={heightPercent}
-                        isToday={isToday}
-                        hours={day.hours}
-                        lastWeekHours={day.lastWeek}
-                        delay={idx}
-                      />
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Prep Tips */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <Card className="dark:card-glow">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-warning" />
-                  Prep Tips
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { icon: BookOpen, title: 'Revise Before Bed', description: 'Reviewing concepts before sleep improves retention by up to 20%.' },
-                  { icon: BarChart3, title: 'Track Weak Areas', description: 'Focus 60% of your time on weak topics and 40% on strengths.' },
-                  { icon: Lightbulb, title: 'Active Recall', description: "Test yourself instead of re-reading — it's 3x more effective." },
-                ].map((tip, idx) => {
-                  const Icon = tip.icon;
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex h-32 items-end justify-between gap-2">
+                {weeklyDays.length > 0 ? weeklyDays.map((day) => {
+                  const heightPercent = maxHours > 0 ? ((day.hours || 0) / maxHours) * 100 : 0;
                   return (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.6 + idx * 0.1 }}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 card-hover"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Icon className="h-4 w-4 text-primary" />
+                    <div key={day.date || day.day} className="flex flex-1 flex-col items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{day.hours || 0}h</span>
+                      <div className="relative w-full" style={{ height: '80px' }}>
+                        <div
+                          className="absolute bottom-0 w-full rounded-t-md bg-primary/40 transition-colors hover:bg-primary/60"
+                          style={{ height: `${Math.max(heightPercent, 4)}%` }}
+                        />
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{tip.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{tip.description}</p>
-                      </div>
-                    </motion.div>
+                      <span className="text-xs text-muted-foreground">{day.day}</span>
+                    </div>
                   );
-                })}
-              </CardContent>
-            </Card>
-          </motion.div>
+                }) : (
+                  <div className="w-full rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    Weekly chart appears after task activity.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="dark:card-glow">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <Lightbulb className="h-5 w-5 text-warning" />
+                Prep Tips
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { icon: BookOpen, title: 'Revise Before Bed', description: 'Reviewing concepts before sleep improves retention by up to 20%.' },
+                { icon: BarChart3, title: 'Track Weak Areas', description: 'Focus 60% of your time on weak topics and 40% on strengths.' },
+                { icon: Lightbulb, title: 'Active Recall', description: "Test yourself instead of re-reading - it's 3x more effective." },
+              ].map((tip, idx) => {
+                const Icon = tip.icon;
+                return (
+                  <motion.div
+                    key={tip.title}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 + idx * 0.08 }}
+                    className="card-hover flex items-start gap-3 rounded-lg bg-muted/30 p-3"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{tip.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{tip.description}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

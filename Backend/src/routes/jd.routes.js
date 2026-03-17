@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth.middleware');
 const {
+  getCompanies,
   analyzeJD,
   getHistory,
   getAnalysis,
@@ -12,6 +13,7 @@ const {
 
 router.use(protect);
 
+router.get('/companies', getCompanies);
 router.post('/analyze', analyzeJD);
 router.get('/history', getHistory);
 router.get('/skill-gaps', getSkillGaps);

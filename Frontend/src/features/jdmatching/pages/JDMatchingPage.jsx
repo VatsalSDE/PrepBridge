@@ -1,13 +1,33 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FileSearch, Target, CheckCircle2, XCircle, Lightbulb, Upload,
-  Briefcase, Clock, ChevronRight, Sparkles, Building2,
-  GraduationCap, BarChart3, FileText, AlertCircle, Search,
-  MapPin, X, ExternalLink
+  AlertCircle,
+  BarChart3,
+  Bookmark,
+  BookmarkCheck,
+  Briefcase,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  FileSearch,
+  FileText,
+  GraduationCap,
+  Lightbulb,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Target,
+  Trash2,
+  Upload,
+  X,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -17,137 +37,251 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { containerVariants, itemVariants } from '@/utils/animations';
 import toast from 'react-hot-toast';
-import { COMPANIES, CITIES, DEFAULT_RESUME_SKILLS, SKILL_KEYWORDS } from '../data/mockCompanyData';
+import useJDStore from '@/store/jdStore';
+
+const AUTO_REFRESH_MS = 20000;
+
+const getPatternBadge = (pattern) => {
+  const styles = {
+    'DSA-heavy': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    'Tech-heavy': 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+    'HR-heavy': 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+  };
+
+  return styles[pattern] || 'bg-muted text-muted-foreground border-border';
+};
+
+const getScoreColor = (score) => {
+  if (score >= 80) return 'text-green-500';
+  if (score >= 60) return 'text-yellow-500';
+  return 'text-red-500';
+};
+
+const getScoreLabel = (score) => {
+  if (score >= 80) return { text: 'Strong Match', color: 'bg-green-500 text-white' };
+  if (score >= 60) return { text: 'Good Match', color: 'bg-yellow-500 text-black' };
+  return { text: 'Needs Work', color: 'bg-red-500 text-white' };
+};
+
+const getEstimatedPrepTime = (score) => {
+  if (score >= 80) return '2-4 weeks';
+  if (score >= 60) return '4-6 weeks';
+  return '6-8 weeks';
+};
+
+const formatDateTime = (value) => {
+  if (!value) return 'Just now';
+  return new Date(value).toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default function JDMatchingPage() {
+  const {
+    companies,
+    currentAnalysis,
+    isLoading,
+    isAnalyzing,
+    error,
+    fetchCompanies,
+    fetchHistory,
+    fetchSkillGaps,
+    analyzeJD,
+    toggleSaveAnalysis,
+    deleteAnalysis,
+    clearCurrentAnalysis,
+  } = useJDStore();
+
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [resumeText, setResumeText] = useState('');
   const [resumeFile, setResumeFile] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [matchResult, setMatchResult] = useState(null);
   const [activeTab, setActiveTab] = useState('jd');
-
-  // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCity, setSelectedCity] = useState('All Cities');
+  const [selectedCity, setSelectedCity] = useState('all');
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const selectedCompany = useMemo(() =>
-    COMPANIES.find(c => c.id === selectedCompanyId),
-    [selectedCompanyId]
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company._id === selectedCompanyId) || null,
+    [companies, selectedCompanyId]
   );
 
-  // Filter companies based on search and city
+  const cityOptions = useMemo(() => {
+    const cities = Array.from(new Set(companies.map((company) => company.city).filter(Boolean)));
+    return ['all', ...cities.sort((left, right) => left.localeCompare(right))];
+  }, [companies]);
+
   const filteredCompanies = useMemo(() => {
-    return COMPANIES.filter(company => {
-      const matchesSearch = company.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCity = selectedCity === 'All Cities' || company.city === selectedCity;
-      return matchesSearch && matchesCity && company.approved;
+    return companies.filter((company) => {
+      const search = searchQuery.trim().toLowerCase();
+      const matchesSearch = !search || [company.name, company.industry, company.city]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(search));
+      const matchesCity = selectedCity === 'all' || company.city === selectedCity;
+      return matchesSearch && matchesCity;
     });
-  }, [searchQuery, selectedCity]);
+  }, [companies, searchQuery, selectedCity]);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type === 'application/pdf' || file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        setResumeFile(file);
-        toast.success(`📄 Resume uploaded: ${file.name}`);
-        setResumeText(`Resume content from ${file.name} - Skills: Java, Python, React, Node.js, SQL, Data Structures, Algorithms, Git, REST APIs, Problem Solving`);
-      } else {
-        toast.error('Please upload a PDF or TXT file');
+  const displayedAnalysis = currentAnalysis;
+  const hasGuidelines = Boolean(selectedCompany?.guidelines?.length);
+
+  const loadLiveData = async (showLoader = false) => {
+    if (showLoader) setIsRefreshing(true);
+
+    try {
+      await Promise.all([
+        fetchCompanies({ page: 1, limit: 100 }),
+        fetchHistory({ page: 1, limit: 10 }),
+        fetchSkillGaps(),
+      ]);
+      setLastSyncedAt(new Date());
+    } catch (loadError) {
+      if (showLoader) {
+        toast.error(loadError.message || 'Failed to sync JD data');
       }
+    } finally {
+      if (showLoader) setIsRefreshing(false);
     }
   };
 
-  const analyzeMatch = () => {
-    if (!selectedCompanyId) {
-      toast.error('Please select a company first');
-      return;
-    }
-    if (!resumeText.trim() && !resumeFile) {
-      toast.error('Please upload your resume or paste your skills');
-      return;
-    }
+  useEffect(() => {
+    loadLiveData(true);
 
-    setIsAnalyzing(true);
-    toast.loading('Analyzing your profile...', { id: 'jd-analyze' });
+    const interval = window.setInterval(() => {
+      loadLiveData(false);
+    }, AUTO_REFRESH_MS);
 
-    setTimeout(() => {
-      const company = COMPANIES.find(c => c.id === selectedCompanyId);
-      const jdLower = company.jd.toLowerCase();
+    const handleFocus = () => loadLiveData(false);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadLiveData(false);
+      }
+    };
 
-      const resumeSkills = resumeText.toLowerCase();
-      const matchedSkills = DEFAULT_RESUME_SKILLS.filter(skill =>
-        resumeSkills.includes(skill.toLowerCase()) || jdLower.includes(skill.toLowerCase())
-      );
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
-      const missingSkills = [];
-      Object.entries(SKILL_KEYWORDS).forEach(([category, keywords]) => {
-        keywords.forEach(keyword => {
-          if (jdLower.includes(keyword) && !resumeSkills.includes(keyword)) {
-            const skillName = keyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-            if (!missingSkills.find(s => s.name.toLowerCase() === skillName.toLowerCase())) {
-              missingSkills.push({
-                name: skillName,
-                priority: company.focusDistribution.dsa > 35 ? 'high' : 'medium',
-                category
-              });
-            }
-          }
-        });
-      });
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
-      const baseScore = Math.min(85, 50 + matchedSkills.length * 3);
-      const penaltyPerMissing = company.focusDistribution.dsa > 35 ? 3 : 2;
-      const score = Math.max(40, baseScore - (missingSkills.slice(0, 5).length * penaltyPerMissing));
-
-      setMatchResult({
-        score,
-        matchedSkills,
-        missingSkills: missingSkills.slice(0, 6),
-        company,
-        estimatedPrepTime: score > 70 ? '2-4 weeks' : score > 55 ? '4-6 weeks' : '6-8 weeks'
-      });
-
-      setIsAnalyzing(false);
+  useEffect(() => {
+    if (currentAnalysis) {
       setActiveTab('result');
-      toast.success('🎯 Analysis complete!', { id: 'jd-analyze' });
-    }, 2000);
-  };
+    }
+  }, [currentAnalysis]);
+
+  useEffect(() => {
+    if (!selectedCompanyId) return;
+
+    const stillExists = companies.some((company) => company._id === selectedCompanyId);
+    if (!stillExists && !isLoading) {
+      setSelectedCompanyId('');
+      clearCurrentAnalysis();
+      setActiveTab('jd');
+      toast('The selected company changed on the admin side and is no longer available.');
+    }
+  }, [selectedCompanyId, companies, isLoading, clearCurrentAnalysis]);
 
   const handleCompanySelect = (companyId) => {
     setSelectedCompanyId(companyId);
-    setMatchResult(null);
+    clearCurrentAnalysis();
     setActiveTab('jd');
   };
 
   const clearSelection = () => {
     setSelectedCompanyId('');
-    setMatchResult(null);
+    setResumeText('');
+    setResumeFile(null);
+    clearCurrentAnalysis();
     setActiveTab('jd');
   };
 
-  const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-500';
-    if (score >= 60) return 'text-yellow-500';
-    return 'text-red-500';
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+    const isTxt = file.type === 'text/plain' || lowerName.endsWith('.txt');
+
+    if (!isPdf && !isTxt) {
+      toast.error('Please upload a PDF or TXT file');
+      return;
+    }
+
+    setResumeFile(file);
+
+    if (isTxt) {
+      try {
+        const content = await file.text();
+        setResumeText(content);
+        toast.success(`Loaded text from ${file.name}`);
+      } catch {
+        toast.error('Unable to read the text file');
+      }
+      return;
+    }
+
+    toast('PDF selected. Paste resume text below until AI resume parsing is added.');
   };
 
-  const getScoreLabel = (score) => {
-    if (score >= 80) return { text: 'Strong Match', color: 'bg-green-500' };
-    if (score >= 60) return { text: 'Good Match', color: 'bg-yellow-500' };
-    return { text: 'Needs Work', color: 'bg-red-500' };
+  const handleAnalyze = async () => {
+    if (!selectedCompanyId) {
+      toast.error('Please select a company first');
+      return;
+    }
+
+    if (!resumeText.trim()) {
+      toast.error('Paste resume text to analyze this JD');
+      return;
+    }
+
+    toast.loading('Analyzing JD match...', { id: 'jd-analyze' });
+
+    try {
+      await analyzeJD({ companyId: selectedCompanyId, resumeText: resumeText.trim() });
+      await Promise.all([
+        fetchHistory({ page: 1, limit: 10 }),
+        fetchSkillGaps(),
+      ]);
+      toast.success('JD analysis completed', { id: 'jd-analyze' });
+    } catch (analyzeError) {
+      toast.error(analyzeError.message || 'Failed to analyze JD', { id: 'jd-analyze' });
+    }
   };
 
-  const getPatternBadge = (pattern) => {
-    const styles = {
-      'DSA-heavy': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      'Tech-heavy': 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-      'HR-heavy': 'bg-orange-500/10 text-orange-500 border-orange-500/20'
-    };
-    return styles[pattern] || 'bg-muted text-muted-foreground';
+  const handleToggleSave = async (analysisId) => {
+    try {
+      const saved = await toggleSaveAnalysis(analysisId);
+      toast.success(saved ? 'Analysis saved' : 'Saved flag removed');
+    } catch (toggleError) {
+      toast.error(toggleError.message || 'Failed to update saved state');
+    }
   };
 
-  const hasGuidelines = selectedCompany?.guidelines?.length > 0;
+  const handleDeleteAnalysis = async (analysisId) => {
+    try {
+      await deleteAnalysis(analysisId);
+      if (currentAnalysis?._id === analysisId) {
+        clearCurrentAnalysis();
+        setActiveTab('jd');
+      }
+      await fetchSkillGaps();
+      toast.success('Analysis deleted');
+    } catch (deleteError) {
+      toast.error(deleteError.message || 'Failed to delete analysis');
+    }
+  };
+
+  const scoreMeta = displayedAnalysis ? getScoreLabel(displayedAnalysis.matchScore || 0) : null;
 
   return (
     <motion.div
@@ -156,440 +290,403 @@ export default function JDMatchingPage() {
       animate="visible"
       className="space-y-6"
     >
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-          <FileSearch className="w-8 h-8 text-primary" />
-          JD Matching
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Select a company, upload your resume, and get personalized insights
-        </p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="flex items-center gap-3 text-3xl font-bold text-foreground">
+            <FileSearch className="h-8 w-8 text-primary" />
+            JD Matching
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Admin-approved company JDs sync here automatically. Matching is deterministic today and ready for AI/ML scoring later.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/70 px-4 py-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Live Sync</p>
+            <p className="text-sm text-foreground">
+              {lastSyncedAt ? `Last synced ${formatDateTime(lastSyncedAt)}` : 'Syncing data...'}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => loadLiveData(true)} disabled={isRefreshing}>
+            {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Step 1: Company Selection */}
-      {!selectedCompanyId ? (
-        <motion.div variants={itemVariants}>
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-primary" />
-                Step 1: Select a Company
-              </CardTitle>
-              <CardDescription>
-                Search and filter companies to find your target
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Search and Filter Row */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search companies..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={selectedCity} onValueChange={setSelectedCity}>
-                  <SelectTrigger className="w-full sm:w-48">
-                    <MapPin className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="Filter by city" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border border-border">
-                    {CITIES.map(city => (
-                      <SelectItem key={city} value={city}>{city}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      {error ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-4 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </CardContent>
+        </Card>
+      ) : null}
 
-              {/* Company List */}
-              <ScrollArea className="h-[400px] rounded-lg border border-border/50">
-                <div className="p-2 space-y-2">
-                  {filteredCompanies.length > 0 ? (
-                    filteredCompanies.map((company) => (
+      <div className="space-y-6">
+        <motion.div variants={itemVariants} className="space-y-6">
+          {!selectedCompany ? (
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Select a Company
+                </CardTitle>
+                <CardDescription>
+                  This list is sourced from approved admin entries and refreshes in real time.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by company, industry, or city"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={selectedCity} onValueChange={setSelectedCity}>
+                    <SelectTrigger className="w-full sm:w-52">
+                      <MapPin className="mr-2 h-4 w-4" />
+                      <SelectValue placeholder="Filter by city" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cityOptions.map((city) => (
+                        <SelectItem key={city} value={city}>
+                          {city === 'all' ? 'All Cities' : city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <ScrollArea className="h-[460px] rounded-lg border border-border/50">
+                  <div className="space-y-2 p-2">
+                    {filteredCompanies.length > 0 ? filteredCompanies.map((company) => (
                       <motion.div
-                        key={company.id}
+                        key={company._id}
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
-                        onClick={() => handleCompanySelect(company.id)}
-                        className="p-4 rounded-lg border border-border/50 bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleCompanySelect(company._id)}
+                        className="cursor-pointer rounded-lg border border-border/50 bg-card p-4 transition-colors hover:bg-muted/40"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{company.logo}</span>
-                            <div>
-                              <h3 className="font-medium">{company.name}</h3>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <MapPin className="w-3 h-3" />
-                                {company.city}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="text-2xl">{company.logo || '[C]'}</span>
+                            <div className="min-w-0">
+                              <h3 className="truncate font-medium text-foreground">{company.name}</h3>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{company.city}</span>
                                 <span>•</span>
                                 <span>{company.industry}</span>
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge className={getPatternBadge(company.interviewPattern)}>
-                              {company.interviewPattern}
-                            </Badge>
-                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                            <Badge className={getPatternBadge(company.interviewPattern)}>{company.interviewPattern || 'General'}</Badge>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
                           </div>
                         </div>
                       </motion.div>
-                    ))
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <Building2 className="w-12 h-12 text-muted-foreground mb-3" />
-                      <p className="text-muted-foreground">No companies found matching your criteria</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
+                    )) : (
+                      <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                        <Building2 className="mb-3 h-12 w-12 text-muted-foreground" />
+                        <p className="font-medium text-foreground">No approved companies match these filters</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Clear the filters or wait for the next admin sync.</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
 
-              <p className="text-sm text-muted-foreground text-center">
-                {filteredCompanies.length} companies found
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ) : (
-        <>
-          {/* Selected Company Header */}
-          <motion.div variants={itemVariants}>
-            <Card className="glass-card bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-                    <span className="text-3xl">{selectedCompany.logo}</span>
-                    <div className="min-w-0">
-                      <h2 className="text-lg sm:text-xl font-semibold">{selectedCompany.name}</h2>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        {selectedCompany.city}
-                        <span>•</span>
-                        <span>{selectedCompany.industry}</span>
+                <p className="text-center text-sm text-muted-foreground">{filteredCompanies.length} live company entries</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <Card className="glass-card border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5">
+                <CardContent className="p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <span className="text-3xl">{selectedCompany.logo || '[C]'}</span>
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-semibold text-foreground sm:text-xl">{selectedCompany.name}</h2>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                          <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{selectedCompany.city}</span>
+                          <span>•</span>
+                          <span>{selectedCompany.industry}</span>
+                        </div>
+                      </div>
+                      <Badge className={getPatternBadge(selectedCompany.interviewPattern)}>{selectedCompany.interviewPattern || 'General'}</Badge>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {selectedCompany.websiteUrl ? (
+                        <Button variant="outline" size="sm" onClick={() => window.open(selectedCompany.websiteUrl, '_blank', 'noopener,noreferrer')}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Visit
+                        </Button>
+                      ) : null}
+                      <Button variant="outline" size="sm" onClick={clearSelection}>
+                        <X className="mr-2 h-4 w-4" />
+                        Change
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="rounded-lg bg-blue-500/10 p-2 text-center">
+                      <div className="text-xs text-muted-foreground">DSA</div>
+                      <div className="font-semibold text-blue-500">{selectedCompany.focusDistribution?.dsa || 0}%</div>
+                    </div>
+                    <div className="rounded-lg bg-purple-500/10 p-2 text-center">
+                      <div className="text-xs text-muted-foreground">Core CS</div>
+                      <div className="font-semibold text-purple-500">{selectedCompany.focusDistribution?.coreCS || 0}%</div>
+                    </div>
+                    <div className="rounded-lg bg-green-500/10 p-2 text-center">
+                      <div className="text-xs text-muted-foreground">System Design</div>
+                      <div className="font-semibold text-green-500">{selectedCompany.focusDistribution?.systemDesign || 0}%</div>
+                    </div>
+                    <div className="rounded-lg bg-orange-500/10 p-2 text-center">
+                      <div className="text-xs text-muted-foreground">HR / Behavioral</div>
+                      <div className="font-semibold text-orange-500">{selectedCompany.focusDistribution?.hr || 0}%</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Resume Input
+                  </CardTitle>
+                  <CardDescription>
+                    Paste resume text for deterministic matching now. AI parsing and ML ranking can be layered in later without changing this page contract.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept=".pdf,.txt"
+                        onChange={handleFileUpload}
+                        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                      />
+                      <div className="flex min-h-[140px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50">
+                        <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm font-medium text-foreground">{resumeFile ? resumeFile.name : 'Upload PDF or TXT'}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">TXT files auto-load. PDFs remain a reference until AI parsing is added.</p>
                       </div>
                     </div>
-                    <Badge className={getPatternBadge(selectedCompany.interviewPattern)}>
-                      {selectedCompany.interviewPattern}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {selectedCompany.websiteUrl && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(selectedCompany.websiteUrl, '_blank')}
-                      >
-                        <ExternalLink className="w-4 h-4 mr-1 sm:mr-2" />
-                        <span className="hidden sm:inline">Visit Company Page</span>
-                        <span className="sm:hidden">Visit</span>
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={clearSelection}>
-                      <X className="w-4 h-4 mr-1 sm:mr-2" />
-                      <span className="hidden sm:inline">Change Company</span>
-                      <span className="sm:hidden">Change</span>
-                    </Button>
-                  </div>
-                </div>
 
-                {/* Focus Distribution */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-                  <div className="p-2 rounded-lg bg-blue-500/10 text-center">
-                    <div className="text-xs text-muted-foreground">DSA</div>
-                    <div className="font-semibold text-blue-500">
-                      {selectedCompany.focusDistribution.dsa}%
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-lg bg-purple-500/10 text-center">
-                    <div className="text-xs text-muted-foreground">Core CS</div>
-                    <div className="font-semibold text-purple-500">
-                      {selectedCompany.focusDistribution.coreCS}%
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-lg bg-green-500/10 text-center">
-                    <div className="text-xs text-muted-foreground">System Design</div>
-                    <div className="font-semibold text-green-500">
-                      {selectedCompany.focusDistribution.systemDesign}%
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-lg bg-orange-500/10 text-center">
-                    <div className="text-xs text-muted-foreground">HR/Behavioral</div>
-                    <div className="font-semibold text-orange-500">
-                      {selectedCompany.focusDistribution.hr}%
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Step 2: Resume Upload */}
-          <motion.div variants={itemVariants}>
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  Step 2: Upload Your Resume
-                </CardTitle>
-                <CardDescription>
-                  Upload your resume or paste your skills to get matched
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  {/* File Upload */}
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept=".pdf,.txt"
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    />
-                    <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors h-full flex flex-col items-center justify-center">
-                      <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                      {resumeFile ? (
-                        <p className="text-sm text-primary font-medium">{resumeFile.name}</p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Drag & drop or click to upload (PDF, TXT)
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Text Input */}
-                  <div>
                     <Textarea
-                      placeholder="Or paste your resume content / list your skills here..."
-                      className="min-h-[120px] resize-none h-full"
+                      placeholder="Paste your resume text here..."
+                      className="min-h-[140px] resize-none"
                       value={resumeText}
-                      onChange={(e) => setResumeText(e.target.value)}
+                      onChange={(event) => setResumeText(event.target.value)}
                     />
                   </div>
-                </div>
 
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={analyzeMatch}
-                  disabled={(!resumeText.trim() && !resumeFile) || isAnalyzing}
-                >
-                  {isAnalyzing ? (
-                    <>
+                  <Button className="w-full" size="lg" onClick={handleAnalyze} disabled={isAnalyzing || !resumeText.trim()}>
+                    {isAnalyzing ? (
+                      <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Analyzing...</>
+                    ) : (
+                      <><Target className="mr-2 h-5 w-5" />Analyze Match</>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="jd" className="flex items-center gap-1"><Briefcase className="h-4 w-4" /><span className="hidden sm:inline">Job Description</span><span className="sm:hidden">JD</span></TabsTrigger>
+                  <TabsTrigger value="result" disabled={!displayedAnalysis} className="flex items-center gap-1"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">Match Result</span><span className="sm:hidden">Result</span></TabsTrigger>
+                  <TabsTrigger value="guidelines" className="flex items-center gap-1"><GraduationCap className="h-4 w-4" /><span className="hidden sm:inline">Prep Guidelines</span><span className="sm:hidden">Tips</span></TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="jd" className="mt-4">
+                  <Card className="glass-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5" />{selectedCompany.name} Job Description</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="max-h-[420px] overflow-y-auto rounded-lg bg-muted/30 p-4 text-sm whitespace-pre-wrap">{selectedCompany.jd}</div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="result" className="mt-4">
+                  <AnimatePresence mode="wait">
+                    {displayedAnalysis ? (
                       <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        className="mr-2"
+                        key={displayedAnalysis._id}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -16 }}
+                        className="grid gap-6 lg:grid-cols-2"
                       >
-                        <Sparkles className="w-5 h-5" />
-                      </motion.div>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Target className="w-5 h-5 mr-2" />
-                      Analyze Match
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
+                        <Card className="glass-card">
+                          <CardContent className="p-6">
+                            <div className="text-center">
+                              <div className="relative mx-auto mb-4 h-32 w-32">
+                                <svg className="h-full w-full -rotate-90 transform">
+                                  <circle cx="64" cy="64" r="56" fill="none" stroke="hsl(var(--muted))" strokeWidth="12" />
+                                  <motion.circle
+                                    cx="64"
+                                    cy="64"
+                                    r="56"
+                                    fill="none"
+                                    stroke="hsl(var(--primary))"
+                                    strokeWidth="12"
+                                    strokeLinecap="round"
+                                    strokeDasharray={352}
+                                    initial={{ strokeDashoffset: 352 }}
+                                    animate={{ strokeDashoffset: 352 - (352 * (displayedAnalysis.matchScore || 0) / 100) }}
+                                    transition={{ duration: 0.9, ease: 'easeOut' }}
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className={`text-4xl font-bold ${getScoreColor(displayedAnalysis.matchScore || 0)}`}>{displayedAnalysis.matchScore || 0}%</span>
+                                </div>
+                              </div>
 
-          {/* Results Section with Tabs */}
-          <motion.div variants={itemVariants}>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="jd" className="flex items-center gap-1">
-                  <Briefcase className="w-4 h-4" />
-                  <span className="hidden sm:inline">Job Description</span>
-                  <span className="sm:hidden">JD</span>
-                </TabsTrigger>
-                <TabsTrigger value="result" disabled={!matchResult} className="flex items-center gap-1">
-                  <BarChart3 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Match Result</span>
-                  <span className="sm:hidden">Result</span>
-                </TabsTrigger>
-                <TabsTrigger value="guidelines" className="flex items-center gap-1">
-                  <GraduationCap className="w-4 h-4" />
-                  <span className="hidden sm:inline">Interview Prep Guidelines</span>
-                  <span className="sm:hidden">Guidelines</span>
-                </TabsTrigger>
-              </TabsList>
+                              <Badge className={scoreMeta?.color}>{scoreMeta?.text}</Badge>
 
-              {/* JD Tab */}
-              <TabsContent value="jd" className="mt-4">
-                <Card className="glass-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Briefcase className="w-5 h-5" />
-                      {selectedCompany.name} - Job Description
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-muted/30 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-                      {selectedCompany.jd}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                              <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                                <div className="flex items-center justify-center gap-2"><Clock className="h-4 w-4" />Estimated prep: {getEstimatedPrepTime(displayedAnalysis.matchScore || 0)}</div>
+                                <div>Generated {formatDateTime(displayedAnalysis.createdAt)}</div>
+                              </div>
 
-              {/* Match Result Tab */}
-              <TabsContent value="result" className="mt-4">
-                <AnimatePresence mode="wait">
-                  {matchResult && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      className="grid md:grid-cols-2 gap-6"
-                    >
-                      {/* Score Card */}
-                      <Card className="glass-card">
-                        <CardContent className="p-6">
-                          <div className="text-center">
-                            <div className="relative w-32 h-32 mx-auto mb-4">
-                              <svg className="w-full h-full transform -rotate-90">
-                                <circle
-                                  cx="64"
-                                  cy="64"
-                                  r="56"
-                                  fill="none"
-                                  stroke="hsl(var(--muted))"
-                                  strokeWidth="12"
-                                />
-                                <motion.circle
-                                  cx="64"
-                                  cy="64"
-                                  r="56"
-                                  fill="none"
-                                  stroke="hsl(var(--primary))"
-                                  strokeWidth="12"
-                                  strokeLinecap="round"
-                                  strokeDasharray={352}
-                                  initial={{ strokeDashoffset: 352 }}
-                                  animate={{ strokeDashoffset: 352 - (352 * matchResult.score / 100) }}
-                                  transition={{ duration: 1, ease: 'easeOut' }}
-                                />
-                              </svg>
-                              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className={`text-4xl font-bold ${getScoreColor(matchResult.score)}`}>
-                                  {matchResult.score}%
-                                </span>
+                              <div className="mt-5 flex justify-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleToggleSave(displayedAnalysis._id)}>
+                                  {displayedAnalysis.isSaved ? <BookmarkCheck className="mr-2 h-4 w-4" /> : <Bookmark className="mr-2 h-4 w-4" />}
+                                  {displayedAnalysis.isSaved ? 'Saved' : 'Save'}
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleDeleteAnalysis(displayedAnalysis._id)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />Delete
+                                </Button>
                               </div>
                             </div>
-                            <Badge className={`${getScoreLabel(matchResult.score).color} text-white`}>
-                              {getScoreLabel(matchResult.score).text}
-                            </Badge>
-                            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                              <Clock className="w-4 h-4" />
-                              Estimated prep: {matchResult.estimatedPrepTime}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                          </CardContent>
+                        </Card>
 
-                      {/* Skills Analysis */}
-                      <Card className="glass-card">
-                        <CardHeader>
-                          <CardTitle className="text-base">Skills Analysis</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <p className="text-sm font-medium text-green-500 flex items-center gap-2 mb-2">
-                              <CheckCircle2 className="w-4 h-4" />
-                              Matched ({matchResult.matchedSkills.length})
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {matchResult.matchedSkills.map((skill, idx) => (
-                                <Badge key={idx} variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                                  {skill}
-                                </Badge>
-                              ))}
+                        <Card className="glass-card">
+                          <CardHeader>
+                            <CardTitle className="text-base">Skills Analysis</CardTitle>
+                            <CardDescription>Matched and missing skills are derived from the admin JD text and your resume input.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-5">
+                            <div>
+                              <div className="mb-2 flex items-center justify-between text-sm">
+                                <span className="font-medium text-foreground">Coverage</span>
+                                <span className="text-muted-foreground">{displayedAnalysis.matchedSkills?.length || 0} matched / {displayedAnalysis.extractedSkills?.length || 0} extracted</span>
+                              </div>
+                              <Progress value={displayedAnalysis.matchScore || 0} className="h-2" />
                             </div>
-                          </div>
 
-                          <div>
-                            <p className="text-sm font-medium text-red-500 flex items-center gap-2 mb-2">
-                              <XCircle className="w-4 h-4" />
-                              Missing ({matchResult.missingSkills.length})
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {matchResult.missingSkills.map((skill, idx) => (
-                                <Badge
-                                  key={idx}
-                                  variant="outline"
-                                  className={`${skill.priority === 'high'
-                                      ? 'bg-red-500/10 text-red-500 border-red-500/20'
-                                      : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                                    }`}
-                                >
-                                  {skill.name}
-                                </Badge>
-                              ))}
+                            <div>
+                              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-green-500"><CheckCircle2 className="h-4 w-4" />Matched ({displayedAnalysis.matchedSkills?.length || 0})</p>
+                              <div className="flex flex-wrap gap-2">
+                                {(displayedAnalysis.matchedSkills || []).length > 0 ? displayedAnalysis.matchedSkills.map((skill) => (
+                                  <Badge key={`${skill.skill}-${skill.userLevel}`} variant="outline" className="border-green-500/20 bg-green-500/10 text-green-500">
+                                    {skill.skill}{skill.userLevel ? ` | ${skill.userLevel}` : ''}
+                                  </Badge>
+                                )) : <p className="text-sm text-muted-foreground">No matched skills detected yet.</p>}
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </TabsContent>
 
-              {/* Interview Preparation Guidelines Tab */}
-              <TabsContent value="guidelines" className="mt-4">
-                <Card className="glass-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <GraduationCap className="w-5 h-5 text-primary" />
-                      Interview Preparation Guidelines
-                    </CardTitle>
-                    <CardDescription>
-                      Curated insights from alumni experiences to help you prepare effectively
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {hasGuidelines ? (
-                      <div className="space-y-3">
-                        {selectedCompany.guidelines.map((guideline, idx) => (
-                          <motion.div
-                            key={idx}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.1 }}
-                            className="flex items-start gap-3 p-4 rounded-lg bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-colors"
-                          >
-                            <span className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
-                              {idx + 1}
-                            </span>
-                            <div className="flex-1">
-                              <p className="text-sm leading-relaxed">{guideline}</p>
+                            <div>
+                              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-red-500"><XCircle className="h-4 w-4" />Missing ({displayedAnalysis.missingSkills?.length || 0})</p>
+                              <div className="flex flex-wrap gap-2">
+                                {(displayedAnalysis.missingSkills || []).length > 0 ? displayedAnalysis.missingSkills.map((skill) => (
+                                  <Badge
+                                    key={`${skill.skill}-${skill.importance}`}
+                                    variant="outline"
+                                    className={skill.importance === 'required' ? 'border-red-500/20 bg-red-500/10 text-red-500' : 'border-yellow-500/20 bg-yellow-500/10 text-yellow-600'}
+                                  >
+                                    {skill.skill}{skill.importance ? ` | ${skill.importance}` : ''}
+                                  </Badge>
+                                )) : <p className="text-sm text-muted-foreground">No missing skills detected.</p>}
+                              </div>
                             </div>
-                            <Lightbulb className="w-4 h-4 text-primary/50 flex-shrink-0" />
-                          </motion.div>
-                        ))}
-                      </div>
+
+                            <div>
+                              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-primary"><Sparkles className="h-4 w-4" />Recommendations</p>
+                              <div className="space-y-2">
+                                {(displayedAnalysis.recommendations || []).length > 0 ? displayedAnalysis.recommendations.slice(0, 4).map((item) => (
+                                  <div key={item.skill} className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="font-medium text-foreground">{item.skill}</p>
+                                      <Badge variant="outline">{item.priority}</Badge>
+                                    </div>
+                                    <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                                      {(item.suggestedResources || []).slice(0, 2).map((resource) => (
+                                        <li key={resource}>- {resource}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )) : <p className="text-sm text-muted-foreground">Recommendations will appear when missing skills are found.</p>}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <AlertCircle className="w-12 h-12 text-muted-foreground mb-3" />
-                        <h3 className="font-medium mb-2">Guidelines Coming Soon</h3>
-                        <p className="text-sm text-muted-foreground max-w-md">
-                          Interview preparation guidelines for {selectedCompany.name} are being compiled from verified alumni experiences.
-                          Check back soon for actionable tips and strategies!
-                        </p>
-                      </div>
+                      <Card className="glass-card">
+                        <CardContent className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                          <BarChart3 className="mb-3 h-12 w-12 text-muted-foreground" />
+                          <p className="font-medium text-foreground">No analysis selected</p>
+                          <p className="mt-1 text-sm text-muted-foreground">Run a match to see your JD analysis result here.</p>
+                        </CardContent>
+                      </Card>
                     )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </motion.div>
-        </>
-      )}
+                  </AnimatePresence>
+                </TabsContent>
+
+                <TabsContent value="guidelines" className="mt-4">
+                  <Card className="glass-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5 text-primary" />Interview Preparation Guidelines</CardTitle>
+                      <CardDescription>These instructions come directly from the company record maintained on the admin side.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {hasGuidelines ? (
+                        <div className="space-y-3">
+                          {selectedCompany.guidelines.map((guideline, index) => (
+                            <motion.div
+                              key={`${selectedCompany._id}-${index}`}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.08 }}
+                              className="flex items-start gap-3 rounded-lg border border-primary/10 bg-primary/5 p-4"
+                            >
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">{index + 1}</span>
+                              <div className="flex-1"><p className="text-sm leading-relaxed text-foreground">{guideline}</p></div>
+                              <Lightbulb className="h-4 w-4 shrink-0 text-primary/50" />
+                            </motion.div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <AlertCircle className="mb-3 h-12 w-12 text-muted-foreground" />
+                          <h3 className="font-medium text-foreground">No guidelines published yet</h3>
+                          <p className="mt-1 max-w-md text-sm text-muted-foreground">When admin updates the company guidelines, they will appear here on the next sync.</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
+        </motion.div>
+      </div>
     </motion.div>
   );
 }
+
+

@@ -60,6 +60,8 @@ exports.createTask = asyncHandler(async (req, res) => {
     date: taskDate
   });
 
+  await streakService.updateActivityLog(req.user.id, taskDate);
+
   res.status(201).json({
     success: true,
     data: task
@@ -81,6 +83,7 @@ exports.updateTask = asyncHandler(async (req, res) => {
     throw new AppError('Not authorized to update this task', 403);
   }
 
+  const previousTaskDate = task.date;
   const updateData = {};
   if (title !== undefined) updateData.title = title;
   if (description !== undefined) updateData.description = description;
@@ -96,6 +99,11 @@ exports.updateTask = asyncHandler(async (req, res) => {
     new: true,
     runValidators: true
   });
+
+  await streakService.updateActivityLog(req.user.id, previousTaskDate);
+  if (task.date.getTime() !== new Date(previousTaskDate).getTime()) {
+    await streakService.updateActivityLog(req.user.id, task.date);
+  }
 
   res.json({
     success: true,
@@ -121,14 +129,12 @@ exports.toggleTask = asyncHandler(async (req, res) => {
   task.completedAt = task.completed ? new Date() : null;
   await task.save();
 
-  // Keep daily activity stats in sync for both complete and uncomplete actions.
-  await streakService.updateActivityLog(req.user.id);
+  await streakService.updateActivityLog(req.user.id, task.date);
 
-  // Update streak and badges only when task is completed.
   if (task.completed) {
     await streakService.updateStreakOnTaskComplete(req.user.id);
-    await badgeService.checkBadgeProgress(req.user.id);
   }
+  await badgeService.checkBadgeProgress(req.user.id);
 
   res.json({
     success: true,
@@ -150,7 +156,10 @@ exports.deleteTask = asyncHandler(async (req, res) => {
     throw new AppError('Not authorized to delete this task', 403);
   }
 
+  const taskDate = task.date;
   await Task.findByIdAndDelete(id);
+  await streakService.updateActivityLog(req.user.id, taskDate);
+  await badgeService.checkBadgeProgress(req.user.id);
 
   res.json({
     success: true,
@@ -206,6 +215,7 @@ exports.updatePomodoro = asyncHandler(async (req, res) => {
   if (actualTime !== undefined) task.actualTime = actualTime;
   
   await task.save();
+  await streakService.updateActivityLog(req.user.id, task.date);
 
   res.json({
     success: true,

@@ -6,9 +6,12 @@ const {
   updateProfile,
   uploadResume,
   viewResume,
+  getDashboardSummary,
 } = require('../controllers/user.controller');
 
 router.use(protect);
+
+router.get('/dashboard', getDashboardSummary);
 
 router.route('/profile')
   .get(getProfile)

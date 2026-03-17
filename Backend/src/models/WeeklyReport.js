@@ -69,59 +69,121 @@ const weeklyReportSchema = new mongoose.Schema({
 weeklyReportSchema.index({ userId: 1, year: 1, weekNumber: 1 }, { unique: true });
 weeklyReportSchema.index({ userId: 1, weekStartDate: -1 });
 
+const getTaskMinutes = (task) => {
+  if (!task) return 0;
+  if (typeof task.actualTime === 'number' && task.actualTime > 0) return task.actualTime;
+  if (task.completed && typeof task.estimatedTime === 'number' && task.estimatedTime > 0) return task.estimatedTime;
+  return 0;
+};
+
 weeklyReportSchema.statics.generateReport = async function(userId, weekStartDate) {
   const ActivityLog = mongoose.model('ActivityLog');
   const Task = mongoose.model('Task');
   const UserStreak = mongoose.model('UserStreak');
   const UserBadge = mongoose.model('UserBadge');
   
-  const weekEnd = new Date(weekStartDate);
+  const weekStart = new Date(weekStartDate);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
   
-  const weekNum = getWeekNumber(weekStartDate);
-  const year = weekStartDate.getFullYear();
+  const weekNum = getWeekNumber(weekStart);
+  const year = weekStart.getFullYear();
   
   const activities = await ActivityLog.find({
     userId,
-    date: { $gte: weekStartDate, $lte: weekEnd }
+    activityDate: { $gte: weekStart, $lte: weekEnd }
   });
   
   const tasks = await Task.find({
     userId,
-    date: { $gte: weekStartDate, $lte: weekEnd }
+    date: { $gte: weekStart, $lte: weekEnd }
   });
   
   const streak = await UserStreak.findOne({ userId });
   
   const badges = await UserBadge.find({
     userId,
-    earnedAt: { $gte: weekStartDate, $lte: weekEnd }
+    earnedAt: { $gte: weekStart, $lte: weekEnd }
   }).select('badgeId');
   
   const summary = {
     totalTasks: tasks.length,
-    completedTasks: tasks.filter(t => t.isCompleted).length,
-    totalMinutes: activities.reduce((sum, a) => sum + a.minutesSpent, 0),
+    completedTasks: tasks.filter(t => t.completed).length,
+    totalMinutes: tasks.reduce((sum, t) => sum + getTaskMinutes(t), 0),
     activeDays: activities.length,
     avgProductivityScore: activities.length > 0 
       ? Math.round(activities.reduce((sum, a) => sum + a.productivityScore, 0) / activities.length)
       : 0
   };
   
-  const categoryBreakdown = {};
-  ['DSA', 'CoreCS', 'Aptitude', 'Projects', 'SystemDesign', 'Behavioral'].forEach(cat => {
-    const catTasks = tasks.filter(t => t.category === cat);
-    categoryBreakdown[cat] = {
-      tasks: catTasks.length,
-      minutes: catTasks.reduce((sum, t) => sum + (t.timeSpent || 0), 0)
-    };
+  const categoryBreakdown = {
+    DSA: { tasks: 0, minutes: 0 },
+    CoreCS: { tasks: 0, minutes: 0 },
+    Aptitude: { tasks: 0, minutes: 0 },
+    Projects: { tasks: 0, minutes: 0 },
+    SystemDesign: { tasks: 0, minutes: 0 },
+    Behavioral: { tasks: 0, minutes: 0 },
+  };
+
+  const categoryMap = {
+    'dsa': 'DSA',
+    'core-cs': 'CoreCS',
+    'aptitude': 'Aptitude',
+    'project': 'Projects',
+    'development': 'SystemDesign',
+    'soft-skills': 'Behavioral',
+    'mock-interview': 'Behavioral',
+  };
+
+  tasks.forEach((task) => {
+    const key = categoryMap[task.category] || 'DSA';
+    categoryBreakdown[key].tasks += 1;
+    categoryBreakdown[key].minutes += getTaskMinutes(task);
   });
+
+  const topicsCompleted = tasks
+    .filter((task) => task.completed)
+    .map((task) => ({
+      category: task.category,
+      topic: task.title,
+    }));
+
+  const previousWeekStart = new Date(weekStart);
+  previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+
+  const previousReport = await this.findOne({ userId, weekStartDate: previousWeekStart });
+
+  const comparedToPrevious = previousReport
+    ? {
+        tasksChange: summary.completedTasks - (previousReport.summary?.completedTasks || 0),
+        minutesChange: summary.totalMinutes - (previousReport.summary?.totalMinutes || 0),
+        productivityChange: summary.avgProductivityScore - (previousReport.summary?.avgProductivityScore || 0),
+      }
+    : {
+        tasksChange: 0,
+        minutesChange: 0,
+        productivityChange: 0,
+      };
+
+  const insights = [];
+  if (summary.completedTasks >= 25) {
+    insights.push({ type: 'strength', message: 'Strong weekly consistency with high task completion.' });
+  }
+  if (summary.activeDays <= 3) {
+    insights.push({ type: 'improvement', message: 'Increase active days to build stronger momentum.' });
+  }
+  if (summary.avgProductivityScore < 70) {
+    insights.push({ type: 'suggestion', message: 'Try shorter focused sessions and clearer daily priorities.' });
+  }
   
   const report = await this.findOneAndUpdate(
     { userId, year, weekNumber: weekNum },
     {
       userId,
-      weekStartDate,
+      weekStartDate: weekStart,
       weekEndDate: weekEnd,
       weekNumber: weekNum,
       year,
@@ -132,9 +194,12 @@ weeklyReportSchema.statics.generateReport = async function(userId, weekStartDate
         longestStreak: streak?.longestStreak || 0,
         streakMaintained: streak?.currentStreak > 0
       },
-      badgesEarned: badges.map(b => b.badgeId)
+      badgesEarned: badges.map(b => b.badgeId),
+      topicsCompleted,
+      comparedToPrevious,
+      insights,
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
   
   return report;

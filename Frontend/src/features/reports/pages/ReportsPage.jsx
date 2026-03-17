@@ -1,139 +1,81 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart3, TrendingUp, TrendingDown, Calendar, Clock, Target,
-  CheckCircle2, XCircle, PieChart, ArrowUp, ArrowDown, FileText,
-  Lightbulb, ChevronRight
+  BarChart3,
+  TrendingUp,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  FileText,
+  PieChart as PieChartIcon,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { containerVariants, itemVariants } from '@/utils/animations';
-import { toast } from 'sonner';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart as RechartsPie, Pie, Cell, BarChart, Bar, Legend
-} from 'recharts';
+import useReportStore from '@/store/reportStore';
 
-const WEEKLY_DATA = [
-  { day: 'Mon', productivity: 85, tasks: 6 },
-  { day: 'Tue', productivity: 72, tasks: 5 },
-  { day: 'Wed', productivity: 90, tasks: 7 },
-  { day: 'Thu', productivity: 65, tasks: 4 },
-  { day: 'Fri', productivity: 78, tasks: 5 },
-  { day: 'Sat', productivity: 82, tasks: 6 },
-  { day: 'Sun', productivity: 45, tasks: 3 }
+const formatDate = (value) => new Date(value).toLocaleDateString();
+const formatShortDate = (value, options) => new Date(value).toLocaleDateString(undefined, options);
+
+const moodOptions = [
+  { emoji: '😊', value: 'good', label: 'Good' },
+  { emoji: '😐', value: 'okay', label: 'Okay' },
+  { emoji: '😔', value: 'bad', label: 'Bad' },
+  { emoji: '💪', value: 'productive', label: 'Productive' },
+  { emoji: '🔥', value: 'productive', label: 'On fire' },
+  { emoji: '😴', value: 'terrible', label: 'Low energy' },
 ];
 
-const THREE_MONTHS_DATA = [
-  { label: 'Dec W1', month: 'Dec', productivity: 65, tasks: 32 },
-  { label: 'Dec W2', month: 'Dec', productivity: 68, tasks: 35 },
-  { label: 'Dec W3', month: 'Dec', productivity: 70, tasks: 38 },
-  { label: 'Dec W4', month: 'Dec', productivity: 72, tasks: 40 },
-  { label: 'Jan W1', month: 'Jan', productivity: 75, tasks: 42 },
-  { label: 'Jan W2', month: 'Jan', productivity: 78, tasks: 45 },
-  { label: 'Jan W3', month: 'Jan', productivity: 80, tasks: 48 },
-  { label: 'Jan W4', month: 'Jan', productivity: 82, tasks: 50 },
-  { label: 'Feb W1', month: 'Feb', productivity: 85, tasks: 53 },
-  { label: 'Feb W2', month: 'Feb', productivity: 80, tasks: 51 },
-  { label: 'Feb W3', month: 'Feb', productivity: 82, tasks: 52 },
-  { label: 'Feb W4', month: 'Feb', productivity: 78, tasks: 49 }
+const trendRanges = [
+  { label: '1W', value: 7 },
+  { label: '3M', value: 90 },
+  { label: '6M', value: 180 },
+  { label: '1Y', value: 365 },
 ];
 
-const SIX_MONTHS_DATA = [
-  { label: 'Sep W1', month: 'Sep', productivity: 60, tasks: 25 },
-  { label: 'Sep W3', month: 'Sep', productivity: 65, tasks: 28 },
-  { label: 'Oct W1', month: 'Oct', productivity: 68, tasks: 30 },
-  { label: 'Oct W3', month: 'Oct', productivity: 70, tasks: 32 },
-  { label: 'Nov W1', month: 'Nov', productivity: 72, tasks: 35 },
-  { label: 'Nov W3', month: 'Nov', productivity: 75, tasks: 38 },
-  { label: 'Dec W1', month: 'Dec', productivity: 76, tasks: 40 },
-  { label: 'Dec W3', month: 'Dec', productivity: 78, tasks: 42 },
-  { label: 'Jan W1', month: 'Jan', productivity: 80, tasks: 45 },
-  { label: 'Jan W3', month: 'Jan', productivity: 82, tasks: 48 },
-  { label: 'Feb W1', month: 'Feb', productivity: 80, tasks: 50 },
-  { label: 'Feb W3', month: 'Feb', productivity: 78, tasks: 49 }
-];
+const formatDelta = (delta, suffix = '') => {
+  const amount = typeof delta === 'number' ? delta : 0;
+  const sign = amount > 0 ? '+' : '';
+  return `${sign}${amount}${suffix}`;
+};
 
-const TWELVE_MONTHS_DATA = [
-  { month: 'Mar', productivity: 55, tasks: 120 },
-  { month: 'Apr', productivity: 58, tasks: 125 },
-  { month: 'May', productivity: 62, tasks: 135 },
-  { month: 'Jun', productivity: 64, tasks: 142 },
-  { month: 'Jul', productivity: 63, tasks: 139 },
-  { month: 'Aug', productivity: 65, tasks: 145 },
-  { month: 'Sep', productivity: 68, tasks: 152 },
-  { month: 'Oct', productivity: 72, tasks: 165 },
-  { month: 'Nov', productivity: 75, tasks: 175 },
-  { month: 'Dec', productivity: 78, tasks: 195 },
-  { month: 'Jan', productivity: 82, tasks: 220 },
-  { month: 'Feb', productivity: 78, tasks: 215 }
-];
+function StatCard({ title, value, icon: Icon, deltaText, deltaTone = 'neutral' }) {
+  const deltaClassName = deltaTone === 'positive'
+    ? 'text-emerald-500'
+    : deltaTone === 'negative'
+      ? 'text-rose-500'
+      : 'text-muted-foreground';
 
-const MONTHLY_DATA = [
-  { week: 'Week 1', productivity: 72 },
-  { week: 'Week 2', productivity: 78 },
-  { week: 'Week 3', productivity: 85 },
-  { week: 'Week 4', productivity: 80 }
-];
-
-const MONTHLY_COMPARISON_DATA = [
-  { month: 'Aug', productivity: 65, tasks: 45 },
-  { month: 'Sep', productivity: 70, tasks: 52 },
-  { month: 'Oct', productivity: 72, tasks: 58 },
-  { month: 'Nov', productivity: 75, tasks: 61 },
-  { month: 'Dec', productivity: 78, tasks: 72 },
-  { month: 'Jan', productivity: 82, tasks: 78 },
-  { month: 'Feb', productivity: 78, tasks: 68 }
-];
-
-const CATEGORY_DATA = [
-  { name: 'DSA', value: 35, color: 'hsl(var(--primary))' },
-  { name: 'Core CS', value: 25, color: 'hsl(var(--accent))' },
-  { name: 'Development', value: 20, color: 'hsl(var(--success))' },
-  { name: 'Aptitude', value: 12, color: 'hsl(var(--warning))' },
-  { name: 'Soft Skills', value: 8, color: 'hsl(var(--streak))' }
-];
-
-const REFLECTIONS = [
-  {
-    date: 'December 22, 2024',
-    wentWell: 'Completed all DSA tasks, solved 5 medium problems',
-    challenges: 'Struggled with graph problems, need more practice',
-    improvements: 'Will focus on BFS/DFS next week',
-    mood: '😊'
-  },
-  {
-    date: 'December 15, 2024',
-    wentWell: 'Good consistency, maintained 7-day streak',
-    challenges: 'Time management during aptitude practice',
-    improvements: 'Set timer for each section',
-    mood: '💪'
-  }
-];
-
-function StatCard({ title, value, change, changeType, icon: Icon, color }) {
   return (
     <motion.div variants={itemVariants}>
       <Card className="glass-card">
         <CardContent className="p-5">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm text-muted-foreground">{title}</p>
-              <p className="text-3xl font-bold mt-1">{value}</p>
-              {change && (
-                <div className={`flex items-center gap-1 mt-2 text-sm ${changeType === 'up' ? 'text-success' : 'text-destructive'
-                  }`}>
-                  {changeType === 'up' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-                  {change} from last week
-                </div>
-              )}
+              <p className="mt-1 text-3xl font-bold">{value}</p>
+              {deltaText ? <p className={`mt-2 text-xs ${deltaClassName}`}>{deltaText}</p> : null}
             </div>
-            <div className={`p-3 rounded-xl bg-${color}/10`}>
-              <Icon className={`w-6 h-6 text-${color}`} />
+            <div className="rounded-xl bg-primary/10 p-3">
+              <Icon className="h-6 w-6 text-primary" />
             </div>
           </div>
         </CardContent>
@@ -142,68 +84,99 @@ function StatCard({ title, value, change, changeType, icon: Icon, color }) {
   );
 }
 
-function WeeklyReflectionForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedMood, setSelectedMood] = useState(null);
+function ReflectionForm({ onSubmit, isSubmitting }) {
+  const [mood, setMood] = useState('');
   const [formData, setFormData] = useState({
-    wentWell: '',
+    accomplishments: '',
     challenges: '',
-    improvements: ''
+    tomorrowGoals: '',
   });
 
-  const handleSubmit = () => {
-    if (!formData.wentWell.trim() || !formData.challenges.trim() || !formData.improvements.trim()) {
-      toast.error('Please fill in all fields');
+  const submit = async () => {
+    if (!mood) {
+      toast.error('Please select a mood');
       return;
     }
-    setIsSubmitting(true);
-    setTimeout(() => {
-      toast.success('✨ Reflection saved! Great job reflecting on your week.');
-      setFormData({ wentWell: '', challenges: '', improvements: '' });
-      setSelectedMood(null);
-      setIsSubmitting(false);
-    }, 1000);
+
+    try {
+      await onSubmit({
+        type: 'weekly',
+        mood,
+        accomplishments: formData.accomplishments,
+        challenges: formData.challenges,
+        tomorrowGoals: formData.tomorrowGoals,
+      });
+
+      setMood('');
+      setFormData({
+        accomplishments: '',
+        challenges: '',
+        tomorrowGoals: '',
+      });
+      toast.success('Reflection submitted');
+    } catch (error) {
+      toast.error(error.message || 'Failed to submit reflection');
+    }
   };
 
   return (
-    <Card className="glass-card">
+    <Card className="glass-card h-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary" />
+          <FileText className="h-5 w-5 text-primary" />
           Weekly Reflection
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label>What went well this week?</Label>
-          <Textarea placeholder="Share your wins and achievements..." className="mt-2" value={formData.wentWell} onChange={(e) => setFormData({ ...formData, wentWell: e.target.value })} />
-        </div>
-        <div>
-          <Label>What challenges did you face?</Label>
-          <Textarea placeholder="What topics or areas were difficult..." className="mt-2" value={formData.challenges} onChange={(e) => setFormData({ ...formData, challenges: e.target.value })} />
-        </div>
-        <div>
-          <Label>What will you improve next week?</Label>
-          <Textarea placeholder="Your action plan for improvement..." className="mt-2" value={formData.improvements} onChange={(e) => setFormData({ ...formData, improvements: e.target.value })} />
-        </div>
-        <div>
-          <Label>How are you feeling? (Select emoji)</Label>
-          <div className="flex gap-3 mt-2">
-            {['😊', '😐', '😔', '💪', '🔥', '😴'].map(emoji => (
-              <motion.button
-                key={emoji}
-                whileHover={{ scale: 1.2 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setSelectedMood(emoji)}
-                className={`text-2xl p-2 rounded-lg transition-colors ${selectedMood === emoji ? 'bg-primary/20' : 'hover:bg-muted/50'}`}
+          <Label>How are you feeling?</Label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {moodOptions.map((item) => (
+              <button
+                key={`${item.emoji}-${item.label}`}
+                type="button"
+                onClick={() => setMood(item.value)}
+                className={`rounded-lg border p-2 text-2xl ${mood === item.value ? 'border-primary bg-primary/10' : 'border-border'}`}
+                title={item.label}
               >
-                {emoji}
-              </motion.button>
+                {item.emoji}
+              </button>
             ))}
           </div>
         </div>
-        <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Submit Reflection'}
+
+        <div>
+          <Label>What went well this week?</Label>
+          <Textarea
+            className="mt-2"
+            placeholder="Share your wins and achievements..."
+            value={formData.accomplishments}
+            onChange={(event) => setFormData((prev) => ({ ...prev, accomplishments: event.target.value }))}
+          />
+        </div>
+
+        <div>
+          <Label>What challenges did you face?</Label>
+          <Textarea
+            className="mt-2"
+            placeholder="What topics or areas were difficult..."
+            value={formData.challenges}
+            onChange={(event) => setFormData((prev) => ({ ...prev, challenges: event.target.value }))}
+          />
+        </div>
+
+        <div>
+          <Label>What will you improve next week?</Label>
+          <Textarea
+            className="mt-2"
+            placeholder="Your action plan for improvement..."
+            value={formData.tomorrowGoals}
+            onChange={(event) => setFormData((prev) => ({ ...prev, tomorrowGoals: event.target.value }))}
+          />
+        </div>
+
+        <Button className="w-full" onClick={submit} disabled={isSubmitting}>
+          {isSubmitting ? 'Submitting...' : 'Submit Reflection'}
         </Button>
       </CardContent>
     </Card>
@@ -211,279 +184,270 @@ function WeeklyReflectionForm() {
 }
 
 export default function ReportsPage() {
-  const [timeRange, setTimeRange] = useState('weekly');
+  const {
+    dashboard,
+    reflections,
+    isLoading,
+    isRefreshing,
+    isSubmitting,
+    error,
+    fetchReportsDashboard,
+    submitReflection,
+  } = useReportStore();
 
-  const getChartData = () => {
-    switch (timeRange) {
-      case '3months':
-        return THREE_MONTHS_DATA;
-      case '6months':
-        return SIX_MONTHS_DATA;
-      case '12months':
-        return TWELVE_MONTHS_DATA;
-      default:
-        return WEEKLY_DATA;
-    }
-  };
+  const [timeRange, setTimeRange] = useState(7);
 
-  const getChartTitle = () => {
-    switch (timeRange) {
-      case '3months':
-        return 'Productivity Trend (Last 3 Months)';
-      case '6months':
-        return 'Productivity Trend (Last 6 Months)';
-      case '12months':
-        return 'Productivity Trend (Last 12 Months)';
-      default:
-        return 'Weekly Productivity Trend';
-    }
-  };
+  useEffect(() => {
+    fetchReportsDashboard().catch((loadError) => {
+      toast.error(loadError.message || 'Failed to load reports');
+    });
+  }, [fetchReportsDashboard]);
+
+  useEffect(() => {
+    const refresh = () => {
+      fetchReportsDashboard({ silent: true }).catch(() => {});
+    };
+
+    const intervalId = window.setInterval(refresh, 20000);
+    const handleFocus = () => refresh();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchReportsDashboard]);
+
+  const trendChartData = useMemo(() => {
+    const source = dashboard?.trendSeries || [];
+    const filtered = source.slice(-timeRange);
+
+    return filtered.map((item) => ({
+      ...item,
+      label: timeRange === 7
+        ? formatShortDate(item.date, { weekday: 'short' })
+        : formatShortDate(item.date, { month: 'short', day: 'numeric' }),
+    }));
+  }, [dashboard, timeRange]);
+
+  const timeDistributionData = useMemo(() => {
+    return (dashboard?.timeDistribution || []).filter((item) => item.minutes > 0);
+  }, [dashboard]);
+
+  const monthlyOverviewData = useMemo(() => dashboard?.monthlyOverview || [], [dashboard]);
+
+  const summaryCards = dashboard?.cards;
+  const comparisonLabel = dashboard?.comparisonLabel || 'vs previous period';
+  const lastUpdatedAt = dashboard?.lastUpdatedAt;
+
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
-      {/* Header */}
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-          <BarChart3 className="w-8 h-8 text-primary" />
+        <h1 className="flex items-center gap-3 text-3xl font-bold text-foreground">
+          <BarChart3 className="h-8 w-8 text-primary" />
           Reports & Insights
         </h1>
-        <p className="text-muted-foreground mt-1">Track your progress and reflect on your journey</p>
+        <p className="mt-1 text-muted-foreground">Track your progress and reflect on your journey with live backend data</p>
+        {lastUpdatedAt ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {isRefreshing ? 'Refreshing live data...' : `Last updated ${new Date(lastUpdatedAt).toLocaleTimeString()}`}
+          </p>
+        ) : null}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {error ? (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-4 text-sm text-destructive">{error}</CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Avg. Productivity"
-          value="78%"
-          change="+5%"
-          changeType="up"
+          value={`${summaryCards?.avgProductivity?.value || 0}%`}
           icon={TrendingUp}
-          color="success"
+          deltaText={`${formatDelta(summaryCards?.avgProductivity?.delta || 0, '%')} ${comparisonLabel}`}
+          deltaTone={(summaryCards?.avgProductivity?.delta || 0) >= 0 ? 'positive' : 'negative'}
         />
         <StatCard
           title="Active Days"
-          value="24/30"
-          change="+3"
-          changeType="up"
+          value={`${summaryCards?.activeDays?.value || 0}/${summaryCards?.activeDays?.total || 30}`}
           icon={Calendar}
-          color="primary"
+          deltaText={`${formatDelta(summaryCards?.activeDays?.delta || 0)} ${comparisonLabel}`}
+          deltaTone={(summaryCards?.activeDays?.delta || 0) >= 0 ? 'positive' : 'negative'}
         />
         <StatCard
           title="Tasks Completed"
-          value="156"
-          change="+12"
-          changeType="up"
+          value={`${summaryCards?.tasksCompleted?.value || 0}`}
           icon={CheckCircle2}
-          color="accent"
+          deltaText={`${formatDelta(summaryCards?.tasksCompleted?.delta || 0)} ${comparisonLabel}`}
+          deltaTone={(summaryCards?.tasksCompleted?.delta || 0) >= 0 ? 'positive' : 'negative'}
         />
         <StatCard
           title="Total Hours"
-          value="68h"
-          change="-2h"
-          changeType="down"
+          value={`${summaryCards?.totalHours?.value || 0}h`}
           icon={Clock}
-          color="warning"
+          deltaText={`${formatDelta(summaryCards?.totalHours?.delta || 0, 'h')} ${comparisonLabel}`}
+          deltaTone={(summaryCards?.totalHours?.delta || 0) >= 0 ? 'positive' : 'negative'}
         />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Main Charts */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Weekly/Extended Productivity Chart */}
-          <motion.div variants={itemVariants}>
-            <Card className="glass-card">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <CardTitle className="text-base sm:text-lg">{getChartTitle()}</CardTitle>
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+        <motion.div variants={itemVariants}>
+          <Card className="glass-card">
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle>Weekly Productivity Trend</CardTitle>
+                <div className="flex items-center gap-2">
+                  {trendRanges.map((range) => (
                     <Button
+                      key={range.value}
                       size="sm"
-                      variant={timeRange === 'weekly' ? 'default' : 'outline'}
-                      onClick={() => setTimeRange('weekly')}
+                      variant={timeRange === range.value ? 'default' : 'outline'}
+                      onClick={() => setTimeRange(range.value)}
                     >
-                      1W
+                      {range.label}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant={timeRange === '3months' ? 'default' : 'outline'}
-                      onClick={() => setTimeRange('3months')}
-                    >
-                      3M
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={timeRange === '6months' ? 'default' : 'outline'}
-                      onClick={() => setTimeRange('6months')}
-                    >
-                      6M
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={timeRange === '12months' ? 'default' : 'outline'}
-                      onClick={() => setTimeRange('12months')}
-                    >
-                      1Y
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={getChartData()}>
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis
-                        dataKey={timeRange === '12months' ? 'month' : timeRange === 'weekly' ? 'day' : 'label'}
-                        tickFormatter={(value, index) => {
-                          const data = getChartData();
-                          if (timeRange === '12months' || timeRange === 'weekly') {
-                            return value;
-                          }
-                          // For 3months and 6months, show month name only when it changes
-                          if (index === 0) return data[0].month;
-                          if (data[index].month !== data[index - 1].month) {
-                            return data[index].month;
-                          }
-                          return '';
-                        }}
-                      />
-                      <YAxis />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="productivity"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={3}
-                        dot={{ fill: 'hsl(var(--primary))' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Monthly Overview (This Month) */}
-          <motion.div variants={itemVariants}>
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle>Monthly Overview (This Month)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={MONTHLY_DATA}>
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis dataKey="week" />
-                      <YAxis />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Bar
-                        dataKey="productivity"
-                        fill="hsl(var(--primary))"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Past Reflections */}
-          <motion.div variants={itemVariants}>
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle>Past Reflections</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {REFLECTIONS.map((reflection, idx) => (
-                  <div key={idx} className="p-4 rounded-lg bg-muted/30 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{reflection.date}</span>
-                      <span className="text-2xl">{reflection.mood}</span>
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <p><span className="text-success">✓ Wins:</span> <span className="text-muted-foreground">{reflection.wentWell}</span></p>
-                      <p><span className="text-warning">⚡ Challenges:</span> <span className="text-muted-foreground">{reflection.challenges}</span></p>
-                      <p><span className="text-primary">→ Next:</span> <span className="text-muted-foreground">{reflection.improvements}</span></p>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Category Distribution */}
-          <motion.div variants={itemVariants}>
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="w-5 h-5" />
-                  Time Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[200px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsPie>
-                      <Pie
-                        data={CATEGORY_DATA}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        dataKey="value"
-                        label={({ name, value }) => `${name}: ${value}%`}
-                        labelLine={false}
-                      >
-                        {CATEGORY_DATA.map((entry, index) => (
-                          <Cell key={index} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </RechartsPie>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {CATEGORY_DATA.map((cat, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                        <span>{cat.name}</span>
-                      </div>
-                      <span className="font-medium">{cat.value}%</span>
-                    </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendChartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="label" minTickGap={24} />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="productivity" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-          {/* Weekly Reflection Form */}
-          <motion.div variants={itemVariants}>
-            <WeeklyReflectionForm />
-          </motion.div>
-        </div>
+        <motion.div variants={itemVariants}>
+          <Card className="glass-card h-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChartIcon className="h-5 w-5 text-primary" />
+                Time Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={timeDistributionData}
+                      dataKey="minutes"
+                      nameKey="name"
+                      innerRadius={60}
+                      outerRadius={88}
+                      paddingAngle={2}
+                    >
+                      {timeDistributionData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value, _, item) => [`${Math.round((value || 0) / 60 * 10) / 10}h`, item?.payload?.name]} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                {timeDistributionData.length === 0 ? (
+                  <p className="text-muted-foreground">No tracked study time in the last 30 days yet.</p>
+                ) : (
+                  timeDistributionData.map((item) => (
+                    <div key={item.key} className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="truncate">{item.name}</span>
+                      </div>
+                      <span>{item.percentage}%</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+        <motion.div variants={itemVariants}>
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle>Monthly Overview (This Month)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyOverviewData}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="label" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Bar dataKey="productivity" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <ReflectionForm onSubmit={submitReflection} isSubmitting={isSubmitting} />
+        </motion.div>
+      </div>
+
+      <motion.div variants={itemVariants}>
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle>Past Reflections</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(reflections || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No reflections yet. Submit one and it will appear here.</p>
+            ) : (
+              (reflections || []).slice(0, 5).map((item) => (
+                <div key={item._id} className="rounded-xl border border-border/60 bg-muted/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-semibold">{formatDate(item.date)}</p>
+                    <span className="text-lg leading-none">{item.moodEmoji || '🙂'}</span>
+                  </div>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <p>
+                      <span className="text-emerald-500">✓ Wins:</span>{' '}
+                      {(item.accomplishments || []).join(', ') || 'No wins noted'}
+                    </p>
+                    <p>
+                      <span className="text-amber-500">⚡ Challenges:</span>{' '}
+                      {(item.challenges || []).join(', ') || 'No challenges noted'}
+                    </p>
+                    <p>
+                      <span className="text-primary">→ Next:</span>{' '}
+                      {(item.tomorrowGoals || []).join(', ') || 'No next step noted'}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {isLoading ? <p className="text-sm text-muted-foreground">Refreshing reports...</p> : null}
     </motion.div>
   );
 }

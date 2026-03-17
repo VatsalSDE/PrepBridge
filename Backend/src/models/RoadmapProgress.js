@@ -1,5 +1,6 @@
 // src/models/RoadmapProgress.js
 const mongoose = require("mongoose");
+const RoadmapTemplate = require("./RoadmapTemplate");
 
 const topicSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -131,6 +132,80 @@ roadmapProgressSchema.methods.toggleDomainSkill = async function (roleId, skillN
   return { skill, roleProgress: role.progress };
 };
 
+roadmapProgressSchema.methods.syncWithTemplate = async function (template) {
+  const source = template?.toObject ? template.toObject() : template;
+  const templateFoundations = source?.foundations || {};
+  const templateDomainRoles = source?.domainRoles || [];
+
+  let changed = false;
+  const foundationKeys = ["dsa", "coreCS", "aptitude", "systemDesign"];
+
+  foundationKeys.forEach((key) => {
+    const currentSections = this[key]?.sections || [];
+    const currentSectionMap = new Map(currentSections.map((section) => [section.name, section]));
+    const nextSections = (templateFoundations[key]?.sections || []).map((templateSection) => {
+      const currentSection = currentSectionMap.get(templateSection.name);
+      const currentTopicMap = new Map((currentSection?.topics || []).map((topic) => [topic.name, topic]));
+
+      return {
+        name: templateSection.name,
+        topics: (templateSection.topics || []).map((topicName) => {
+          const currentTopic = currentTopicMap.get(topicName);
+          return {
+            name: topicName,
+            completed: Boolean(currentTopic?.completed),
+            completedAt: currentTopic?.completed ? currentTopic.completedAt || null : null,
+          };
+        }),
+      };
+    });
+
+    if (JSON.stringify(currentSections) !== JSON.stringify(nextSections)) {
+      this[key].sections = nextSections;
+      changed = true;
+    }
+
+    this.calculateSectionProgress(key);
+  });
+
+  const currentRoles = this.domainRoles || [];
+  const currentRoleMap = new Map(currentRoles.map((role) => [role.roleId, role]));
+
+  const nextRoles = templateDomainRoles.map((templateRole) => {
+    const currentRole = currentRoleMap.get(templateRole.roleId);
+    const currentSkillMap = new Map((currentRole?.skills || []).map((skill) => [skill.name, skill]));
+    const nextSkills = (templateRole.skills || []).map((skillName) => {
+      const currentSkill = currentSkillMap.get(skillName);
+      return {
+        name: skillName,
+        completed: Boolean(currentSkill?.completed),
+        completedAt: currentSkill?.completed ? currentSkill.completedAt || null : null,
+      };
+    });
+
+    const completed = nextSkills.filter((skill) => skill.completed).length;
+    return {
+      roleId: templateRole.roleId,
+      roleName: templateRole.roleName,
+      skills: nextSkills,
+      progress: nextSkills.length ? Math.round((completed / nextSkills.length) * 100) : 0,
+    };
+  });
+
+  if (JSON.stringify(currentRoles) !== JSON.stringify(nextRoles)) {
+    this.domainRoles = nextRoles;
+    changed = true;
+  }
+
+  this.calculateTotalProgress();
+
+  if (changed) {
+    await this.save();
+  }
+
+  return changed;
+};
+
 // Get or create roadmap for user
 roadmapProgressSchema.statics.getOrCreate = async function (userId) {
   let roadmap = await this.findOne({ userId });
@@ -151,154 +226,29 @@ roadmapProgressSchema.statics.getOrCreate = async function (userId) {
 
 // Initialize with default roadmap structure
 roadmapProgressSchema.statics.initializeDefault = async function (userId) {
-  const defaultDSA = {
-    sections: [
-      { name: "Arrays", topics: [
-        { name: "Two Pointers", completed: false },
-        { name: "Sliding Window", completed: false },
-        { name: "Prefix Sum", completed: false },
-        { name: "Kadane's Algorithm", completed: false }
-      ]},
-      { name: "Linked Lists", topics: [
-        { name: "Reversal", completed: false },
-        { name: "Fast & Slow Pointers", completed: false },
-        { name: "Merge Lists", completed: false }
-      ]},
-      { name: "Trees", topics: [
-        { name: "BFS/DFS", completed: false },
-        { name: "Binary Search Tree", completed: false },
-        { name: "Tree DP", completed: false }
-      ]},
-      { name: "Graphs", topics: [
-        { name: "BFS/DFS", completed: false },
-        { name: "Dijkstra", completed: false },
-        { name: "Topological Sort", completed: false },
-        { name: "Union Find", completed: false }
-      ]},
-      { name: "Dynamic Programming", topics: [
-        { name: "1D DP", completed: false },
-        { name: "2D DP", completed: false },
-        { name: "Knapsack", completed: false },
-        { name: "LCS/LIS", completed: false }
-      ]}
-    ],
-    overallProgress: 0
-  };
+  const template = await RoadmapTemplate.getActiveTemplate();
 
-  const defaultCoreCS = {
-    sections: [
-      { name: "DBMS", topics: [
-        { name: "SQL Basics", completed: false },
-        { name: "Normalization", completed: false },
-        { name: "Transactions & ACID", completed: false },
-        { name: "Indexing", completed: false }
-      ]},
-      { name: "Operating Systems", topics: [
-        { name: "Process & Threads", completed: false },
-        { name: "CPU Scheduling", completed: false },
-        { name: "Memory Management", completed: false },
-        { name: "Deadlocks", completed: false }
-      ]},
-      { name: "Computer Networks", topics: [
-        { name: "OSI Model", completed: false },
-        { name: "TCP/UDP", completed: false },
-        { name: "HTTP/HTTPS", completed: false },
-        { name: "DNS", completed: false }
-      ]},
-      { name: "OOP", topics: [
-        { name: "4 Pillars", completed: false },
-        { name: "SOLID Principles", completed: false },
-        { name: "Design Patterns", completed: false }
-      ]}
-    ],
-    overallProgress: 0
-  };
+  const toSections = (sections = []) =>
+    sections.map((section) => ({
+      name: section.name,
+      topics: (section.topics || []).map((topicName) => ({ name: topicName, completed: false })),
+    }));
 
-  const defaultAptitude = {
-    sections: [
-      { name: "Quantitative", topics: [
-        { name: "Number System", completed: false },
-        { name: "Percentages", completed: false },
-        { name: "Profit & Loss", completed: false },
-        { name: "Time & Work", completed: false }
-      ]},
-      { name: "Logical Reasoning", topics: [
-        { name: "Puzzles", completed: false },
-        { name: "Blood Relations", completed: false },
-        { name: "Coding-Decoding", completed: false }
-      ]},
-      { name: "Verbal", topics: [
-        { name: "Reading Comprehension", completed: false },
-        { name: "Grammar", completed: false },
-        { name: "Vocabulary", completed: false }
-      ]}
-    ],
-    overallProgress: 0
-  };
-
-  const defaultSystemDesign = {
-    sections: [
-      { name: "Basics", topics: [
-        { name: "Scalability", completed: false },
-        { name: "Load Balancing", completed: false },
-        { name: "Caching", completed: false },
-        { name: "Database Sharding", completed: false }
-      ]},
-      { name: "Components", topics: [
-        { name: "Message Queues", completed: false },
-        { name: "CDN", completed: false },
-        { name: "API Gateway", completed: false }
-      ]}
-    ],
-    overallProgress: 0
-  };
-
-  const defaultDomainRoles = [
-    {
-      roleId: "frontend",
-      roleName: "Frontend Developer",
-      skills: [
-        { name: "HTML/CSS", completed: false },
-        { name: "JavaScript", completed: false },
-        { name: "React/Vue/Angular", completed: false },
-        { name: "State Management", completed: false },
-        { name: "Testing", completed: false }
-      ],
-      progress: 0
-    },
-    {
-      roleId: "backend",
-      roleName: "Backend Developer",
-      skills: [
-        { name: "Node.js/Python/Java", completed: false },
-        { name: "REST APIs", completed: false },
-        { name: "Databases", completed: false },
-        { name: "Authentication", completed: false },
-        { name: "Cloud Basics", completed: false }
-      ],
-      progress: 0
-    },
-    {
-      roleId: "fullstack",
-      roleName: "Fullstack Developer",
-      skills: [
-        { name: "Frontend Framework", completed: false },
-        { name: "Backend Framework", completed: false },
-        { name: "Database Design", completed: false },
-        { name: "DevOps Basics", completed: false },
-        { name: "System Design", completed: false }
-      ],
-      progress: 0
-    }
-  ];
+  const toDomainRoles = (roles = []) =>
+    roles.map((role) => ({
+      roleId: role.roleId,
+      roleName: role.roleName,
+      skills: (role.skills || []).map((skillName) => ({ name: skillName, completed: false })),
+      progress: 0,
+    }));
 
   const roadmap = await this.create({
     userId,
-    dsa: defaultDSA,
-    coreCS: defaultCoreCS,
-    aptitude: defaultAptitude,
-    systemDesign: defaultSystemDesign,
-    domainRoles: defaultDomainRoles,
+    dsa: { sections: toSections(template.foundations?.dsa?.sections), overallProgress: 0 },
+    coreCS: { sections: toSections(template.foundations?.coreCS?.sections), overallProgress: 0 },
+    aptitude: { sections: toSections(template.foundations?.aptitude?.sections), overallProgress: 0 },
+    systemDesign: { sections: toSections(template.foundations?.systemDesign?.sections), overallProgress: 0 },
+    domainRoles: toDomainRoles(template.domainRoles),
     totalProgress: 0
   });
 

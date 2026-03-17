@@ -6,6 +6,10 @@ const jdAnalysisSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company'
+  },
   jobTitle: {
     type: String,
     required: true,
@@ -66,6 +70,7 @@ const jdAnalysisSchema = new mongoose.Schema({
 
 jdAnalysisSchema.index({ userId: 1, createdAt: -1 });
 jdAnalysisSchema.index({ userId: 1, isSaved: 1 });
+jdAnalysisSchema.index({ userId: 1, companyId: 1, createdAt: -1 });
 
 jdAnalysisSchema.statics.getUserAnalyses = async function(userId, options = {}) {
   const { savedOnly = false, limit = 10, skip = 0 } = options;

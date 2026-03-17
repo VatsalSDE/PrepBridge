@@ -1,9 +1,11 @@
 const UserBadge = require('../models/UserBadge');
 const UserStreak = require('../models/UserStreak');
+const badgeService = require('../services/badge.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 // Get badges + progress
 exports.getBadges = asyncHandler(async (req, res) => {
+  await badgeService.checkBadgeProgress(req.user.id);
   const badges = await UserBadge.getBadgesWithProgress(req.user.id);
 
   const earned = badges.filter(b => b.earned);

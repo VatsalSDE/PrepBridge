@@ -120,7 +120,7 @@ Status legend: ✅ Done, 🟡 In Progress, ⬜ Not Started
    - Service: `src/services/adminService.js`
    - Store: `src/store/adminStore.js`
    - Pages: `features/admin/pages/*`
-- Status: 🟡 (Admin login integrated; most admin pages still mock-driven)
+- Status: 🟡 (Done)
 
 ### D. Profile
 - Backend routes:
@@ -128,7 +128,7 @@ Status legend: ✅ Done, 🟡 In Progress, ⬜ Not Started
    - `PUT /api/users/profile`
    - `POST /api/users/resume`
 - Frontend page: `features/profile/pages/ProfilePage.jsx`
-- Status: ⬜ (currently using mock user constants)
+- Status: ⬜ (Done)
 
 ### E. Roadmap
 - Backend routes:
@@ -136,7 +136,7 @@ Status legend: ✅ Done, 🟡 In Progress, ⬜ Not Started
    - `PATCH /api/roadmap/foundations/:section`
    - `PATCH /api/roadmap/domains/:roleId`
 - Frontend page: `features/roadmap/pages/RoadmapPage.jsx`
-- Status: ⬜
+- Status: (Done)
 
 ### F. Achievements
 - Backend routes:
@@ -144,7 +144,7 @@ Status legend: ✅ Done, 🟡 In Progress, ⬜ Not Started
    - `GET /api/achievements/streaks`
    - `GET /api/achievements/leaderboard`
 - Frontend page: `features/achievements/pages/AchievementsPage.jsx`
-- Status: ⬜
+- Status: (Done)
 
 ### G. Calendar
 - Backend routes:

@@ -1,4 +1,6 @@
 const RoadmapProgress = require('../models/RoadmapProgress');
+const RoadmapTemplate = require('../models/RoadmapTemplate');
+const badgeService = require('../services/badge.service');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 
 // Get full roadmap progress
@@ -8,6 +10,10 @@ exports.getRoadmap = asyncHandler(async (req, res) => {
   if (!roadmap) {
     roadmap = await RoadmapProgress.initializeDefault(req.user.id);
   }
+
+  const template = await RoadmapTemplate.getActiveTemplate();
+  await roadmap.syncWithTemplate(template);
+  await badgeService.checkBadgeProgress(req.user.id);
 
   res.json({
     success: true,
@@ -36,6 +42,7 @@ exports.updateFoundation = asyncHandler(async (req, res) => {
   }
 
   await roadmap.toggleTopic(section, sectionName, topicName);
+  await badgeService.checkBadgeProgress(req.user.id);
 
   res.json({
     success: true,
@@ -72,13 +79,8 @@ exports.updateDomain = asyncHandler(async (req, res) => {
     throw new AppError('Skill not found', 404);
   }
 
-  skill.completed = !skill.completed;
-  skill.completedAt = skill.completed ? new Date() : null;
-
-  const completedSkills = role.skills.filter(s => s.completed).length;
-  role.progress = Math.round((completedSkills / role.skills.length) * 100);
-
-  await roadmap.save();
+  await roadmap.toggleDomainSkill(roleId, skillName);
+  await badgeService.checkBadgeProgress(req.user.id);
 
   res.json({
     success: true,

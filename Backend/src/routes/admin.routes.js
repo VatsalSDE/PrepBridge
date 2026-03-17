@@ -34,4 +34,13 @@ router.patch("/community/posts/:id/unhide", admin.unhidePost);
 router.patch("/reports/:id/resolve", admin.resolveReport);
 router.patch("/reports/:id/dismiss", admin.dismissReport);
 
+// roadmap management
+router.get("/roadmap/template", admin.getRoadmapTemplate);
+router.patch("/roadmap/template/foundations/:section", admin.updateRoadmapTemplateFoundation);
+router.patch("/roadmap/template/domains", admin.updateRoadmapTemplateDomains);
+router.get("/roadmap/users", admin.getRoadmapUsers);
+router.get("/roadmap/users/:id", admin.getUserRoadmap);
+router.patch("/roadmap/users/:id/foundations/:section", admin.updateUserRoadmapFoundation);
+router.patch("/roadmap/users/:id/domains/:roleId", admin.updateUserRoadmapDomain);
+
 module.exports = router;

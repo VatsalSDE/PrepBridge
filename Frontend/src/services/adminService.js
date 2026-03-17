@@ -126,6 +126,55 @@ const adminService = {
       authType: 'admin',
     });
   },
+
+  getRoadmapUsers(page = 1, limit = 20, search = '') {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit), search });
+    return apiRequest(`/admin/roadmap/users?${params.toString()}`, { auth: true, authType: 'admin' });
+  },
+
+  getUserRoadmap(userId) {
+    return apiRequest(`/admin/roadmap/users/${userId}`, { auth: true, authType: 'admin' });
+  },
+
+  updateUserRoadmapFoundation(userId, section, sectionName, topicName) {
+    return apiRequest(`/admin/roadmap/users/${userId}/foundations/${section}`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+      body: { sectionName, topicName },
+    });
+  },
+
+  updateUserRoadmapDomain(userId, roleId, skillName) {
+    return apiRequest(`/admin/roadmap/users/${userId}/domains/${roleId}`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+      body: { skillName },
+    });
+  },
+
+  getRoadmapTemplate() {
+    return apiRequest('/admin/roadmap/template', { auth: true, authType: 'admin' });
+  },
+
+  updateRoadmapTemplateFoundation(section, payload) {
+    return apiRequest(`/admin/roadmap/template/foundations/${section}`, {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+      body: payload,
+    });
+  },
+
+  updateRoadmapTemplateDomains(roles) {
+    return apiRequest('/admin/roadmap/template/domains', {
+      method: 'PATCH',
+      auth: true,
+      authType: 'admin',
+      body: { roles },
+    });
+  },
 };
 
 export default adminService;

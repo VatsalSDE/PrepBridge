@@ -1,8 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BookOpen, Plus, Edit3, Trash2, Code2, Database, Calculator,
-  ChevronDown, ChevronRight, CheckCircle2, Save, X, Layers
+  BookOpen,
+  Plus,
+  Edit3,
+  Trash2,
+  Code2,
+  Database,
+  Calculator,
+  ChevronRight,
+  CheckCircle2,
+  Save,
+  X,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,96 +29,151 @@ import {
 import { Label } from '@/components/ui/label';
 import { containerVariants, itemVariants } from '@/utils/animations';
 import { toast } from 'sonner';
+import adminService from '@/services/adminService';
+
+const FOUNDATION_META = {
+  dsa: { title: 'DSA Roadmap', icon: Code2 },
+  coreCs: { title: 'Core CS Roadmap', icon: Database },
+  systemDesign: { title: 'System Design Roadmap', icon: Layers },
+  aptitude: { title: 'Aptitude Roadmap', icon: Calculator },
+};
 
 const INITIAL_ROADMAPS = {
   dsa: {
-    title: 'DSA Roadmap',
-    icon: Code2,
-    sections: [
-      { id: 1, name: 'Arrays', topics: ['Two Pointers', 'Sliding Window', 'Prefix Sum'] },
-      { id: 2, name: 'Linked Lists', topics: ['Fast & Slow Pointers', 'Reversal', 'Merge'] },
-      { id: 3, name: 'Trees', topics: ['DFS', 'BFS', 'BST Operations'] },
-      { id: 4, name: 'Graphs', topics: ['DFS/BFS', 'Shortest Path', 'Topological Sort'] },
-      { id: 5, name: 'Dynamic Programming', topics: ['1D DP', '2D DP', 'Knapsack'] },
-    ]
+    title: FOUNDATION_META.dsa.title,
+    icon: FOUNDATION_META.dsa.icon,
+    sections: [],
   },
   coreCs: {
-    title: 'Core CS Roadmap',
-    icon: Database,
-    sections: [
-      { id: 1, name: 'DBMS', topics: ['ER Model', 'Normalization', 'SQL', 'Transactions'] },
-      { id: 2, name: 'Operating Systems', topics: ['Processes', 'Scheduling', 'Memory'] },
-      { id: 3, name: 'Computer Networks', topics: ['OSI Model', 'TCP/IP', 'HTTP'] },
-      { id: 4, name: 'OOP', topics: ['Classes', 'Inheritance', 'Polymorphism'] },
-    ]
+    title: FOUNDATION_META.coreCs.title,
+    icon: FOUNDATION_META.coreCs.icon,
+    sections: [],
   },
   systemDesign: {
-    title: 'System Design Roadmap',
-    icon: Layers,
-    sections: [
-      { id: 1, name: 'Fundamentals', topics: ['CAP Theorem', 'Load Balancing', 'Caching'] },
-      { id: 2, name: 'Databases', topics: ['SQL vs NoSQL', 'Sharding', 'Replication'] },
-      { id: 3, name: 'Communication', topics: ['REST', 'gRPC', 'Message Queues'] },
-      { id: 4, name: 'Architecture Patterns', topics: ['Microservices', 'Event-Driven', 'CQRS'] },
-      { id: 5, name: 'Case Studies', topics: ['URL Shortener', 'Twitter', 'Netflix'] },
-    ]
+    title: FOUNDATION_META.systemDesign.title,
+    icon: FOUNDATION_META.systemDesign.icon,
+    sections: [],
   },
   aptitude: {
-    title: 'Aptitude Roadmap',
-    icon: Calculator,
-    sections: [
-      { id: 1, name: 'Quantitative', topics: ['Number Systems', 'Percentages', 'Time & Work'] },
-      { id: 2, name: 'Logical Reasoning', topics: ['Puzzles', 'Seating', 'Blood Relations'] },
-      { id: 3, name: 'Verbal', topics: ['Reading Comprehension', 'Grammar', 'Vocabulary'] },
-    ]
-  }
+    title: FOUNDATION_META.aptitude.title,
+    icon: FOUNDATION_META.aptitude.icon,
+    sections: [],
+  },
 };
 
-const INITIAL_DOMAIN_ROLES = [
-  { id: 'frontend', name: 'Frontend Developer', skills: ['React', 'Vue', 'TypeScript', 'CSS', 'HTML', 'Redux', 'Webpack', 'Testing', 'Performance', 'Accessibility', 'Responsive Design', 'API Integration'] },
-  { id: 'backend', name: 'Backend Developer', skills: ['Node.js', 'Python', 'Java', 'Databases', 'REST APIs', 'GraphQL', 'Authentication', 'Caching', 'Microservices', 'Docker', 'Security', 'Testing'] },
-  { id: 'fullstack', name: 'Full Stack Developer', skills: ['React', 'Node.js', 'Databases', 'REST APIs', 'Git', 'Docker', 'CI/CD', 'Testing', 'Cloud Services', 'System Design', 'Agile', 'Security'] },
-  { id: 'data-engineer', name: 'Data Engineer', skills: ['Python', 'SQL', 'ETL', 'Spark', 'Hadoop', 'Airflow', 'Data Modeling', 'Cloud Platforms', 'Streaming', 'Data Warehousing', 'NoSQL', 'Scripting'] },
-  { id: 'ai-ml', name: 'AI/ML Engineer', skills: ['Python', 'TensorFlow', 'PyTorch', 'Scikit-learn', 'Deep Learning', 'NLP', 'Computer Vision', 'MLOps', 'Data Preprocessing', 'Model Deployment', 'Statistics', 'Mathematics'] },
-  { id: 'devops', name: 'DevOps Engineer', skills: ['Docker', 'Kubernetes', 'CI/CD', 'AWS/GCP/Azure', 'Terraform', 'Ansible', 'Linux', 'Monitoring', 'Scripting', 'Networking', 'Security', 'Git'] },
-];
+const toEditorSections = (sections = []) =>
+  sections.map((section, index) => ({
+    id: `${section.name}-${index}`,
+    name: section.name,
+    topics: section.topics || [],
+  }));
 
-function RoadmapEditor({ roadmap, onSave }) {
-  const [sections, setSections] = useState(roadmap.sections);
+const sanitizeSections = (sections = []) =>
+  sections
+    .map((section) => ({
+      name: String(section.name || '').trim(),
+      topics: Array.from(
+        new Set(
+          (section.topics || [])
+            .map((topic) => String(topic || '').trim())
+            .filter(Boolean)
+        )
+      ),
+    }))
+    .filter((section) => section.name && section.topics.length > 0);
+
+const mapTemplateToRoadmaps = (template) => {
+  const foundations = template?.foundations || {};
+  return {
+    dsa: {
+      title: foundations.dsa?.title || FOUNDATION_META.dsa.title,
+      icon: FOUNDATION_META.dsa.icon,
+      sections: toEditorSections(foundations.dsa?.sections || []),
+    },
+    coreCs: {
+      title: foundations.coreCS?.title || FOUNDATION_META.coreCs.title,
+      icon: FOUNDATION_META.coreCs.icon,
+      sections: toEditorSections(foundations.coreCS?.sections || []),
+    },
+    systemDesign: {
+      title: foundations.systemDesign?.title || FOUNDATION_META.systemDesign.title,
+      icon: FOUNDATION_META.systemDesign.icon,
+      sections: toEditorSections(foundations.systemDesign?.sections || []),
+    },
+    aptitude: {
+      title: foundations.aptitude?.title || FOUNDATION_META.aptitude.title,
+      icon: FOUNDATION_META.aptitude.icon,
+      sections: toEditorSections(foundations.aptitude?.sections || []),
+    },
+  };
+};
+
+const mapTemplateToRoles = (template) =>
+  (template?.domainRoles || []).map((role) => ({
+    id: role.roleId,
+    name: role.roleName,
+    skills: role.skills || [],
+  }));
+
+const roleIdFromName = (name) => String(name || '').trim().toLowerCase().replace(/\s+/g, '-');
+
+const mapRolesForApi = (roles = []) =>
+  roles.map((role) => ({
+    roleId: role.id || roleIdFromName(role.name),
+    roleName: role.name,
+    skills: Array.from(new Set((role.skills || []).map((skill) => String(skill || '').trim()).filter(Boolean))),
+  }));
+
+function RoadmapEditor({ roadmap, isSaving, onSave }) {
+  const [sections, setSections] = useState(roadmap.sections || []);
   const [newSectionName, setNewSectionName] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
 
+  useEffect(() => {
+    setSections(roadmap.sections || []);
+  }, [roadmap]);
+
   const handleAddSection = () => {
     if (!newSectionName.trim()) return;
-    setSections([...sections, { 
-      id: Date.now(), 
-      name: newSectionName, 
-      topics: [] 
-    }]);
+    setSections([
+      ...sections,
+      {
+        id: `${newSectionName.trim()}-${Date.now()}`,
+        name: newSectionName.trim(),
+        topics: [],
+      },
+    ]);
     setNewSectionName('');
     setShowAddSection(false);
     toast.success('Section added');
   };
 
   const handleDeleteSection = (sectionId) => {
-    setSections(sections.filter(s => s.id !== sectionId));
+    setSections(sections.filter((section) => section.id !== sectionId));
     toast.success('Section deleted');
   };
 
   const handleAddTopic = (sectionId, topic) => {
-    setSections(sections.map(s => 
-      s.id === sectionId 
-        ? { ...s, topics: [...s.topics, topic] }
-        : s
-    ));
+    const nextTopic = String(topic || '').trim();
+    if (!nextTopic) return;
+
+    setSections(
+      sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        if (section.topics.includes(nextTopic)) return section;
+        return { ...section, topics: [...section.topics, nextTopic] };
+      })
+    );
   };
 
   const handleDeleteTopic = (sectionId, topicIndex) => {
-    setSections(sections.map(s => 
-      s.id === sectionId 
-        ? { ...s, topics: s.topics.filter((_, i) => i !== topicIndex) }
-        : s
-    ));
+    setSections(
+      sections.map((section) =>
+        section.id === sectionId
+          ? { ...section, topics: section.topics.filter((_, index) => index !== topicIndex) }
+          : section
+      )
+    );
   };
 
   return (
@@ -137,7 +202,7 @@ function RoadmapEditor({ roadmap, onSave }) {
           <CardContent className="space-y-2">
             <div className="flex flex-wrap gap-2">
               {section.topics.map((topic, idx) => (
-                <Badge key={idx} variant="outline" className="gap-2">
+                <Badge key={`${topic}-${idx}`} variant="outline" className="gap-2">
                   {topic}
                   <button
                     onClick={() => handleDeleteTopic(section.id, idx)}
@@ -152,10 +217,10 @@ function RoadmapEditor({ roadmap, onSave }) {
               <Input
                 placeholder="Add topic..."
                 className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.target.value.trim()) {
-                    handleAddTopic(section.id, e.target.value.trim());
-                    e.target.value = '';
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && event.target.value.trim()) {
+                    handleAddTopic(section.id, event.target.value.trim());
+                    event.target.value = '';
                   }
                 }}
               />
@@ -164,7 +229,6 @@ function RoadmapEditor({ roadmap, onSave }) {
         </Card>
       ))}
 
-      {/* Add Section */}
       {showAddSection ? (
         <Card className="glass-card border-dashed border-2 border-primary/30">
           <CardContent className="p-4">
@@ -172,7 +236,7 @@ function RoadmapEditor({ roadmap, onSave }) {
               <Input
                 placeholder="Section name..."
                 value={newSectionName}
-                onChange={(e) => setNewSectionName(e.target.value)}
+                onChange={(event) => setNewSectionName(event.target.value)}
                 autoFocus
               />
               <Button onClick={handleAddSection}>
@@ -196,34 +260,40 @@ function RoadmapEditor({ roadmap, onSave }) {
         </Button>
       )}
 
-      <Button className="w-full" onClick={() => onSave(sections)}>
+      <Button className="w-full" disabled={isSaving} onClick={() => onSave(sections)}>
         <Save className="w-4 h-4 mr-2" />
-        Save Roadmap
+        {isSaving ? 'Saving...' : 'Save Roadmap'}
       </Button>
     </div>
   );
 }
 
-function EditSkillsDialog({ role, isOpen, onClose, onSave }) {
+function EditSkillsDialog({ role, isOpen, isSaving, onClose, onSave }) {
   const [skills, setSkills] = useState(role?.skills || []);
   const [newSkill, setNewSkill] = useState('');
 
+  useEffect(() => {
+    setSkills(role?.skills || []);
+  }, [role]);
+
   const handleAddSkill = () => {
-    if (!newSkill.trim()) return;
-    if (skills.includes(newSkill.trim())) {
+    const value = newSkill.trim();
+    if (!value) return;
+    if (skills.includes(value)) {
       toast.error('Skill already exists');
       return;
     }
-    setSkills([...skills, newSkill.trim()]);
+    setSkills([...skills, value]);
     setNewSkill('');
   };
 
   const handleRemoveSkill = (skillToRemove) => {
-    setSkills(skills.filter(s => s !== skillToRemove));
+    setSkills(skills.filter((skill) => skill !== skillToRemove));
   };
 
-  const handleSave = () => {
-    onSave(role.id, skills);
+  const handleSave = async () => {
+    if (!role) return;
+    await onSave(role.id, skills);
     onClose();
   };
 
@@ -238,17 +308,16 @@ function EditSkillsDialog({ role, isOpen, onClose, onSave }) {
             Edit Skills for {role.name}
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
-          {/* Add Skill Input */}
           <div className="flex gap-2">
             <Input
               placeholder="Add new skill..."
               value={newSkill}
-              onChange={(e) => setNewSkill(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
+              onChange={(event) => setNewSkill(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
                   handleAddSkill();
                 }
               }}
@@ -259,18 +328,14 @@ function EditSkillsDialog({ role, isOpen, onClose, onSave }) {
             </Button>
           </div>
 
-          {/* Skills List */}
           <div className="space-y-2">
             <Label>Current Skills ({skills.length})</Label>
             <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-muted/30 min-h-[100px]">
               {skills.length > 0 ? (
                 skills.map((skill, idx) => (
-                  <Badge key={idx} variant="secondary" className="gap-2">
+                  <Badge key={`${skill}-${idx}`} variant="secondary" className="gap-2">
                     {skill}
-                    <button
-                      onClick={() => handleRemoveSkill(skill)}
-                      className="hover:text-destructive"
-                    >
+                    <button onClick={() => handleRemoveSkill(skill)} className="hover:text-destructive">
                       <X className="w-3 h-3" />
                     </button>
                   </Badge>
@@ -286,9 +351,9 @@ function EditSkillsDialog({ role, isOpen, onClose, onSave }) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={isSaving}>
             <Save className="w-4 h-4 mr-2" />
-            Save Changes
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -298,57 +363,148 @@ function EditSkillsDialog({ role, isOpen, onClose, onSave }) {
 
 export default function AdminContentPage() {
   const [roadmaps, setRoadmaps] = useState(INITIAL_ROADMAPS);
-  const [roles, setRoles] = useState(INITIAL_DOMAIN_ROLES);
+  const [roles, setRoles] = useState([]);
   const [showAddRole, setShowAddRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [editingRole, setEditingRole] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingFoundation, setIsSavingFoundation] = useState(false);
+  const [isSavingRoles, setIsSavingRoles] = useState(false);
 
-  const handleSaveRoadmap = (key, sections) => {
-    setRoadmaps({
-      ...roadmaps,
-      [key]: { ...roadmaps[key], sections }
-    });
-    toast.success('Roadmap saved successfully!');
+  useEffect(() => {
+    let mounted = true;
+
+    const loadTemplate = async () => {
+      try {
+        const response = await adminService.getRoadmapTemplate();
+        if (!mounted) return;
+        setRoadmaps(mapTemplateToRoadmaps(response?.data));
+        setRoles(mapTemplateToRoles(response?.data));
+      } catch (error) {
+        toast.error(error?.message || 'Failed to load roadmap template');
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    loadTemplate();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const persistRoles = async (nextRoles, successMessage) => {
+    setIsSavingRoles(true);
+    try {
+      const payload = mapRolesForApi(nextRoles);
+      await adminService.updateRoadmapTemplateDomains(payload);
+      setRoles(nextRoles);
+      if (editingRole) {
+        const refreshedRole = nextRoles.find((role) => role.id === editingRole.id) || null;
+        setEditingRole(refreshedRole);
+      }
+      toast.success(successMessage);
+    } catch (error) {
+      toast.error(error?.message || 'Failed to update domain roles');
+      throw error;
+    } finally {
+      setIsSavingRoles(false);
+    }
   };
 
-  const handleAddRole = () => {
-    if (!newRoleName.trim()) return;
-    setRoles([...roles, {
-      id: newRoleName.toLowerCase().replace(/\s+/g, '-'),
-      name: newRoleName,
-      skills: []
-    }]);
+  const handleSaveRoadmap = async (key, sections) => {
+    const sectionMap = { dsa: 'dsa', coreCs: 'coreCS', aptitude: 'aptitude', systemDesign: 'systemDesign' };
+    const backendSection = sectionMap[key];
+    const sanitizedSections = sanitizeSections(sections);
+
+    if (!sanitizedSections.length) {
+      toast.error('Add at least one section with topics before saving');
+      return;
+    }
+
+    setIsSavingFoundation(true);
+    try {
+      await adminService.updateRoadmapTemplateFoundation(backendSection, {
+        title: roadmaps[key]?.title,
+        sections: sanitizedSections,
+      });
+
+      setRoadmaps((prev) => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          sections: toEditorSections(sanitizedSections),
+        },
+      }));
+
+      toast.success('Roadmap updated for all users');
+    } catch (error) {
+      toast.error(error?.message || 'Failed to update roadmap');
+    } finally {
+      setIsSavingFoundation(false);
+    }
+  };
+
+  const handleAddRole = async () => {
+    const roleName = newRoleName.trim();
+    if (!roleName) return;
+
+    const nextRole = {
+      id: roleIdFromName(roleName),
+      name: roleName,
+      skills: [],
+    };
+
+    if (roles.some((role) => role.id === nextRole.id)) {
+      toast.error('Role already exists');
+      return;
+    }
+
+    const nextRoles = [...roles, nextRole];
+    await persistRoles(nextRoles, 'Role added');
     setNewRoleName('');
     setShowAddRole(false);
-    toast.success('Role added');
   };
 
-  const handleDeleteRole = (roleId) => {
-    setRoles(roles.filter(r => r.id !== roleId));
-    toast.success('Role deleted');
+  const handleDeleteRole = async (roleId) => {
+    const nextRoles = roles.filter((role) => role.id !== roleId);
+    if (!nextRoles.length) {
+      toast.error('At least one role must remain');
+      return;
+    }
+    await persistRoles(nextRoles, 'Role deleted');
   };
 
-  const handleSaveSkills = (roleId, skills) => {
-    setRoles(roles.map(r => 
-      r.id === roleId ? { ...r, skills } : r
-    ));
-    toast.success('Skills updated successfully!');
+  const handleSaveSkills = async (roleId, skills) => {
+    const nextRoles = roles.map((role) =>
+      role.id === roleId ? { ...role, skills: Array.from(new Set(skills.map((skill) => skill.trim()).filter(Boolean))) } : role
+    );
+    await persistRoles(nextRoles, 'Skills updated successfully');
   };
+
+  if (isLoading) {
+    return (
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <BookOpen className="w-8 h-8 text-primary" />
+            Content Management
+          </h1>
+          <p className="text-muted-foreground">Loading roadmap content...</p>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
-      {/* Header */}
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <BookOpen className="w-8 h-8 text-primary" />
           Content Management
         </h1>
-        <p className="text-muted-foreground">Manage roadmaps, skills, and learning content</p>
+        <p className="text-muted-foreground">Admin controls the roadmap template used by all students</p>
       </div>
 
       <Tabs defaultValue="foundations" className="space-y-6">
@@ -381,6 +537,7 @@ export default function AdminContentPage() {
             <TabsContent value="dsa" className="mt-4">
               <RoadmapEditor
                 roadmap={roadmaps.dsa}
+                isSaving={isSavingFoundation}
                 onSave={(sections) => handleSaveRoadmap('dsa', sections)}
               />
             </TabsContent>
@@ -388,6 +545,7 @@ export default function AdminContentPage() {
             <TabsContent value="coreCs" className="mt-4">
               <RoadmapEditor
                 roadmap={roadmaps.coreCs}
+                isSaving={isSavingFoundation}
                 onSave={(sections) => handleSaveRoadmap('coreCs', sections)}
               />
             </TabsContent>
@@ -395,6 +553,7 @@ export default function AdminContentPage() {
             <TabsContent value="systemDesign" className="mt-4">
               <RoadmapEditor
                 roadmap={roadmaps.systemDesign}
+                isSaving={isSavingFoundation}
                 onSave={(sections) => handleSaveRoadmap('systemDesign', sections)}
               />
             </TabsContent>
@@ -402,6 +561,7 @@ export default function AdminContentPage() {
             <TabsContent value="aptitude" className="mt-4">
               <RoadmapEditor
                 roadmap={roadmaps.aptitude}
+                isSaving={isSavingFoundation}
                 onSave={(sections) => handleSaveRoadmap('aptitude', sections)}
               />
             </TabsContent>
@@ -420,6 +580,7 @@ export default function AdminContentPage() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive h-8 w-8"
+                        disabled={isSavingRoles}
                         onClick={() => handleDeleteRole(role.id)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -429,9 +590,9 @@ export default function AdminContentPage() {
                       <span className="text-muted-foreground">Skills</span>
                       <Badge variant="secondary">{role.skills?.length || 0}</Badge>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="w-full mt-3"
                       onClick={() => setEditingRole(role)}
                     >
@@ -443,18 +604,17 @@ export default function AdminContentPage() {
               </motion.div>
             ))}
 
-            {/* Add Role Card */}
             {showAddRole ? (
               <Card className="glass-card border-dashed border-2 border-primary/30">
                 <CardContent className="p-4 space-y-3">
                   <Input
                     placeholder="Role name..."
                     value={newRoleName}
-                    onChange={(e) => setNewRoleName(e.target.value)}
+                    onChange={(event) => setNewRoleName(event.target.value)}
                     autoFocus
                   />
                   <div className="flex gap-2">
-                    <Button size="sm" className="flex-1" onClick={handleAddRole}>
+                    <Button size="sm" className="flex-1" onClick={handleAddRole} disabled={isSavingRoles}>
                       Add
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setShowAddRole(false)}>
@@ -480,10 +640,10 @@ export default function AdminContentPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Skills Dialog */}
       <EditSkillsDialog
         role={editingRole}
-        isOpen={!!editingRole}
+        isOpen={Boolean(editingRole)}
+        isSaving={isSavingRoles}
         onClose={() => setEditingRole(null)}
         onSave={handleSaveSkills}
       />

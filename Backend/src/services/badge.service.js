@@ -18,16 +18,14 @@ const checkBadgeProgress = async (userId) => {
 
   for (const badge of badges) {
     const progress = await calculateBadgeProgress(userId, badge);
-    
-    if (progress > 0) {
-      const update = await UserBadge.updateProgress(userId, badge._id, progress);
-      updates.push({
-        badge: badge.name,
-        progress: update.progress,
-        earned: update.earned,
-        justEarned: update.earned && progress >= 100
-      });
-    }
+    const existing = await UserBadge.findOne({ userId, badgeId: badge._id });
+    const update = await UserBadge.updateProgress(userId, badge._id, progress);
+    updates.push({
+      badge: badge.name,
+      progress: update.progress,
+      earned: update.earned,
+      justEarned: !existing?.earned && update.earned,
+    });
   }
 
   return updates.filter(u => u.justEarned);

@@ -6,6 +6,8 @@ const CommunityPost = require("../models/CommunityPost");
 const PostComment = require("../models/PostComment");
 const PostUpvote = require("../models/PostUpvote");
 const PostBookmark = require("../models/PostBookmark");
+const RoadmapProgress = require("../models/RoadmapProgress");
+const RoadmapTemplate = require("../models/RoadmapTemplate");
 const anonymousService = require("../services/anonymous.service");
 const analyticsService = require("../services/analytics.service");
 const { asyncHandler, AppError } = require("../middleware/errorHandler");
@@ -145,8 +147,17 @@ const getCommunityPosts = asyncHandler(async (req, res) => {
       { content: { $regex: search, $options: "i" } },
     ];
   }
+
   if (onlyReported) {
-    query.reportCount = { $gt: 0 };
+    const reportedPostIds = await PostReport.distinct("postId", {});
+    if (!reportedPostIds.length) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0 },
+      });
+    }
+    query._id = { $in: reportedPostIds };
   }
 
   const [posts, total] = await Promise.all([
@@ -212,7 +223,7 @@ const deleteCommunityPost = asyncHandler(async (req, res) => {
 
 const getCommunityReports = asyncHandler(async (_req, res) => {
   const reports = await PostReport.find({})
-    .populate("postId", "title content")
+    .populate("postId", "title content isHidden reportCount")
     .populate("reporterId", "name email")
     .populate("reviewedBy", "name email")
     .sort({ createdAt: -1 });
@@ -245,13 +256,43 @@ const resolveReport = asyncHandler(async (req, res) => {
   if (!report) throw new AppError("Report not found", 404);
   if (report.status !== "pending") throw new AppError("Only pending report can be resolved", 400);
 
-  report.status = "resolved";
-  report.reviewedBy = req.user._id;
-  report.reviewedAt = new Date();
-  report.actionTaken = req.body.actionTaken || "hidden";
-  await report.save();
+  const actionTaken = req.body.actionTaken || "hidden";
+  const now = new Date();
 
-  res.json({ success: true, message: "Report resolved", data: report });
+  if (actionTaken === "deleted") {
+    await Promise.all([
+      CommunityPost.findByIdAndDelete(report.postId),
+      PostComment.deleteMany({ postId: report.postId }),
+      PostUpvote.deleteMany({ postId: report.postId }),
+      PostBookmark.deleteMany({ postId: report.postId }),
+    ]);
+  } else if (actionTaken === "hidden") {
+    await CommunityPost.findByIdAndUpdate(report.postId, { isHidden: true, hiddenAt: now });
+  } else if (actionTaken === "unhidden") {
+    await CommunityPost.findByIdAndUpdate(report.postId, { isHidden: false, hiddenAt: null });
+  }
+
+  await PostReport.updateMany(
+    { postId: report.postId, status: "pending" },
+    {
+      status: "resolved",
+      reviewedBy: req.user._id,
+      reviewedAt: now,
+      actionTaken,
+    }
+  );
+
+  if (actionTaken !== "deleted") {
+    const pendingCount = await PostReport.countDocuments({ postId: report.postId, status: "pending" });
+    await CommunityPost.findByIdAndUpdate(report.postId, { reportCount: pendingCount });
+  }
+
+  const updatedReport = await PostReport.findById(req.params.id)
+    .populate("postId", "title content isHidden reportCount")
+    .populate("reporterId", "name email")
+    .populate("reviewedBy", "name email");
+
+  res.json({ success: true, message: "Report resolved", data: updatedReport });
 });
 
 const dismissReport = asyncHandler(async (req, res) => {
@@ -259,19 +300,259 @@ const dismissReport = asyncHandler(async (req, res) => {
   if (!report) throw new AppError("Report not found", 404);
   if (report.status !== "pending") throw new AppError("Only pending report can be dismissed", 400);
 
-  report.status = "dismissed";
-  report.reviewedBy = req.user._id;
-  report.reviewedAt = new Date();
-  report.actionTaken = "dismissed";
-  await report.save();
+  const now = new Date();
 
-  res.json({ success: true, message: "Report dismissed", data: report });
+  await PostReport.updateMany(
+    { postId: report.postId, status: "pending" },
+    {
+      status: "dismissed",
+      reviewedBy: req.user._id,
+      reviewedAt: now,
+      actionTaken: "dismissed",
+    }
+  );
+
+  const pendingCount = await PostReport.countDocuments({ postId: report.postId, status: "pending" });
+  await CommunityPost.findByIdAndUpdate(report.postId, { reportCount: pendingCount });
+
+  const updatedReport = await PostReport.findById(req.params.id)
+    .populate("postId", "title content isHidden reportCount")
+    .populate("reporterId", "name email")
+    .populate("reviewedBy", "name email");
+
+  res.json({ success: true, message: "Report dismissed", data: updatedReport });
 });
 
 // Dashboard
 const getDashboard = asyncHandler(async (_req, res) => {
   const stats = await analyticsService.getDashboardStats();
   res.json({ success: true, data: stats });
+});
+
+const normalizeSections = (sections = []) =>
+  sections
+    .map((section) => ({
+      name: String(section?.name || "").trim(),
+      topics: Array.from(
+        new Set(
+          (section?.topics || [])
+            .map((topic) => String(topic || "").trim())
+            .filter(Boolean)
+        )
+      ),
+    }))
+    .filter((section) => section.name && section.topics.length > 0);
+
+const normalizeRoles = (roles = []) =>
+  roles
+    .map((role) => {
+      const roleName = String(role?.roleName || role?.name || "").trim();
+      const roleIdRaw = String(role?.roleId || role?.id || roleName).trim().toLowerCase();
+      const roleId = roleIdRaw.replace(/\s+/g, "-");
+      const skills = Array.from(
+        new Set(
+          (role?.skills || [])
+            .map((skill) => String(skill || "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      return {
+        roleId,
+        roleName,
+        skills,
+      };
+    })
+    .filter((role) => role.roleId && role.roleName);
+
+const syncAllRoadmapsWithTemplate = async (templateDoc) => {
+  const allRoadmaps = await RoadmapProgress.find({});
+  for (const roadmap of allRoadmaps) {
+    await roadmap.syncWithTemplate(templateDoc);
+  }
+};
+
+const getRoadmapTemplate = asyncHandler(async (_req, res) => {
+  const template = await RoadmapTemplate.getActiveTemplate();
+  res.json({ success: true, data: template });
+});
+
+const updateRoadmapTemplateFoundation = asyncHandler(async (req, res) => {
+  const { section } = req.params;
+  const validSections = ["dsa", "coreCS", "aptitude", "systemDesign"];
+  if (!validSections.includes(section)) throw new AppError("Invalid section", 400);
+
+  const sections = normalizeSections(req.body?.sections || []);
+  if (!sections.length) throw new AppError("At least one section with topics is required", 400);
+
+  const template = await RoadmapTemplate.getActiveTemplate();
+  const currentTitle = template.foundations?.[section]?.title || `${section} roadmap`;
+  template.foundations[section] = {
+    title: String(req.body?.title || currentTitle),
+    sections,
+  };
+
+  await template.save();
+  await syncAllRoadmapsWithTemplate(template);
+
+  res.json({
+    success: true,
+    message: "Foundation template updated",
+    data: template,
+  });
+});
+
+const updateRoadmapTemplateDomains = asyncHandler(async (req, res) => {
+  const roles = normalizeRoles(req.body?.roles || req.body?.domainRoles || []);
+  if (!roles.length) throw new AppError("At least one role with skills is required", 400);
+
+  const template = await RoadmapTemplate.getActiveTemplate();
+  template.domainRoles = roles;
+  await template.save();
+  await syncAllRoadmapsWithTemplate(template);
+
+  res.json({
+    success: true,
+    message: "Domain roles template updated",
+    data: template,
+  });
+});
+
+// Roadmap management
+const getRoadmapUsers = asyncHandler(async (req, res) => {
+  const page = Number(req.query.page || 1);
+  const limit = Number(req.query.limit || 20);
+  const skip = (page - 1) * limit;
+  const search = (req.query.search || "").trim();
+
+  const query = { role: "student" };
+  if (search) {
+    query.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const [users, total] = await Promise.all([
+    User.find(query)
+      .select("name email status targetRole createdAt")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    User.countDocuments(query),
+  ]);
+
+  const userIds = users.map((user) => user._id);
+  const roadmaps = await RoadmapProgress.find({ userId: { $in: userIds } }).select(
+    "userId totalProgress dsa.overallProgress coreCS.overallProgress aptitude.overallProgress systemDesign.overallProgress updatedAt"
+  );
+
+  const roadmapMap = new Map(roadmaps.map((roadmap) => [roadmap.userId.toString(), roadmap]));
+
+  const data = users.map((user) => {
+    const roadmap = roadmapMap.get(user._id.toString());
+    return {
+      ...user.toObject(),
+      roadmap: {
+        hasRoadmap: Boolean(roadmap),
+        totalProgress: roadmap?.totalProgress || 0,
+        foundations: {
+          dsa: roadmap?.dsa?.overallProgress || 0,
+          coreCS: roadmap?.coreCS?.overallProgress || 0,
+          aptitude: roadmap?.aptitude?.overallProgress || 0,
+          systemDesign: roadmap?.systemDesign?.overallProgress || 0,
+        },
+        lastUpdatedAt: roadmap?.updatedAt || null,
+      },
+    };
+  });
+
+  res.json({
+    success: true,
+    data,
+    pagination: { page, limit, total },
+  });
+});
+
+const getUserRoadmap = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select("name email status targetRole role");
+  if (!user) throw new AppError("User not found", 404);
+  if (user.role !== "student") throw new AppError("Roadmap is available for students only", 400);
+
+  let roadmap = await RoadmapProgress.findOne({ userId: user._id });
+  if (!roadmap) {
+    roadmap = await RoadmapProgress.initializeDefault(user._id);
+  }
+
+  res.json({
+    success: true,
+    data: {
+      user,
+      roadmap,
+    },
+  });
+});
+
+const updateUserRoadmapFoundation = asyncHandler(async (req, res) => {
+  const { id, section } = req.params;
+  const { sectionName, topicName } = req.body;
+
+  const validSections = ["dsa", "coreCS", "aptitude", "systemDesign"];
+  if (!validSections.includes(section)) throw new AppError("Invalid section", 400);
+  if (!sectionName || !topicName) throw new AppError("sectionName and topicName are required", 400);
+
+  const user = await User.findById(id).select("role");
+  if (!user) throw new AppError("User not found", 404);
+  if (user.role !== "student") throw new AppError("Roadmap is available for students only", 400);
+
+  let roadmap = await RoadmapProgress.findOne({ userId: id });
+  if (!roadmap) {
+    roadmap = await RoadmapProgress.initializeDefault(id);
+  }
+
+  try {
+    await roadmap.toggleTopic(section, sectionName, topicName);
+  } catch (error) {
+    throw new AppError(error.message || "Failed to update roadmap topic", 400);
+  }
+
+  const refreshed = await RoadmapProgress.findOne({ userId: id });
+
+  res.json({
+    success: true,
+    message: "User roadmap topic updated",
+    data: refreshed,
+  });
+});
+
+const updateUserRoadmapDomain = asyncHandler(async (req, res) => {
+  const { id, roleId } = req.params;
+  const { skillName } = req.body;
+
+  if (!skillName) throw new AppError("skillName is required", 400);
+
+  const user = await User.findById(id).select("role");
+  if (!user) throw new AppError("User not found", 404);
+  if (user.role !== "student") throw new AppError("Roadmap is available for students only", 400);
+
+  let roadmap = await RoadmapProgress.findOne({ userId: id });
+  if (!roadmap) {
+    roadmap = await RoadmapProgress.initializeDefault(id);
+  }
+
+  try {
+    await roadmap.toggleDomainSkill(roleId, skillName);
+  } catch (error) {
+    throw new AppError(error.message || "Failed to update roadmap domain skill", 400);
+  }
+
+  const refreshed = await RoadmapProgress.findOne({ userId: id });
+
+  res.json({
+    success: true,
+    message: "User domain skill updated",
+    data: refreshed,
+  });
 });
 
 module.exports = {
@@ -295,4 +576,11 @@ module.exports = {
   resolveReport,
   dismissReport,
   getDashboard,
+  getRoadmapTemplate,
+  updateRoadmapTemplateFoundation,
+  updateRoadmapTemplateDomains,
+  getRoadmapUsers,
+  getUserRoadmap,
+  updateUserRoadmapFoundation,
+  updateUserRoadmapDomain,
 };

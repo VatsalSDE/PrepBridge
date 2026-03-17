@@ -50,8 +50,12 @@ postBookmarkSchema.statics.getUserBookmarks = async function (userId, page = 1, 
 
   const postIds = bookmarks.map(b => b.postId);
   const posts = await CommunityPost.find({ _id: { $in: postIds }, isHidden: false });
+  const postMap = new Map(posts.map((post) => [post._id.toString(), post]));
 
-  return posts;
+  // Keep the same order as bookmark creation sort (most recently bookmarked first).
+  return postIds
+    .map((postId) => postMap.get(postId.toString()))
+    .filter(Boolean);
 };
 
 // Check bookmark status for multiple posts

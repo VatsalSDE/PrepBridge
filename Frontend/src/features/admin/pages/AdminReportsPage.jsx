@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Flag, CheckCircle2, Clock3, EyeOff, Eye, XCircle } from 'lucide-react';
+import { Flag, CheckCircle2, Clock3, EyeOff, Eye, XCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -58,13 +58,17 @@ const ReportRow = ({ report, onHide, onUnhide, onResolve, onDismiss }) => {
 
             {report.status === 'pending' ? (
               <>
-                <Button size="sm" onClick={() => onResolve(report._id)}>
+                <Button size="sm" onClick={() => onResolve(report._id, 'hidden')}>
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Resolve
+                  Hide And Resolve
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => onResolve(report._id, 'deleted')}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Post
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => onDismiss(report._id)}>
                   <XCircle className="w-4 h-4 mr-2" />
-                  Dismiss
+                  Allow Post
                 </Button>
               </>
             ) : null}
@@ -111,10 +115,16 @@ export default function AdminReportsPage() {
     }
   };
 
-  const handleResolve = async (reportId) => {
+  const handleResolve = async (reportId, actionTaken = 'hidden') => {
     try {
-      await resolveReport(reportId, 'hidden');
-      toast.success('Report resolved');
+      await resolveReport(reportId, actionTaken);
+      if (actionTaken === 'deleted') {
+        toast.success('Post deleted and reports resolved');
+      } else if (actionTaken === 'hidden') {
+        toast.success('Post hidden and reports resolved');
+      } else {
+        toast.success('Report resolved');
+      }
     } catch (error) {
       toast.error(error.message || 'Unable to resolve report');
     }

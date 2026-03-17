@@ -61,14 +61,19 @@ userBadgeSchema.statics.awardBadge = async function (userId, badgeId) {
 
 // Update badge progress
 userBadgeSchema.statics.updateProgress = async function (userId, badgeId, progress) {
+  const normalizedProgress = Math.max(0, Math.min(progress, 100));
   const earned = progress >= 100;
+  const existing = await this.findOne({ userId, badgeId });
+
+  const updateData = {
+    progress: normalizedProgress,
+    earned,
+    earnedAt: earned ? existing?.earnedAt || new Date() : null,
+  };
+
   const userBadge = await this.findOneAndUpdate(
     { userId, badgeId },
-    { 
-      progress: Math.min(progress, 100),
-      earned,
-      ...(earned && { earnedAt: new Date() })
-    },
+    updateData,
     { upsert: true, new: true }
   );
   return userBadge;

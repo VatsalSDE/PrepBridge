@@ -72,38 +72,52 @@ const resetWeeklyStats = async () => {
   return result.modifiedCount;
 };
 
-// Rebuild today's activity log from tasks to keep aggregates consistent.
-const updateActivityLog = async (userId) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+const buildDateRange = (date = new Date()) => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+};
+
+const getTaskMinutes = (task) => {
+  if (!task) return 0;
+  if (typeof task.actualTime === 'number' && task.actualTime > 0) return task.actualTime;
+  if (task.completed && typeof task.estimatedTime === 'number' && task.estimatedTime > 0) return task.estimatedTime;
+  return 0;
+};
+
+// Rebuild an activity log for a specific day from tasks to keep calendar aggregates consistent.
+const updateActivityLog = async (userId, date = new Date()) => {
+  const { start, end } = buildDateRange(date);
 
   let activityLog = await ActivityLog.findOne({
     userId,
-    activityDate: { $gte: today, $lt: tomorrow }
+    activityDate: { $gte: start, $lt: end }
   });
 
   if (!activityLog) {
     activityLog = await ActivityLog.create({
       userId,
-      activityDate: today,
+      activityDate: start,
       tasksCompleted: 0,
       tasksTotal: 0,
       minutesSpent: 0,
       pomodoroSessions: 0,
       productivityScore: 0,
-      categoryBreakdown: {}
+      categoryBreakdown: {},
+      categoryCount: {}
     });
   }
 
-  const tasksToday = await Task.find({
+  const tasksForDay = await Task.find({
     userId,
-    date: { $gte: today, $lt: tomorrow }
+    date: { $gte: start, $lt: end }
   });
 
-  const completedTasks = tasksToday.filter((task) => task.completed);
+  const completedTasks = tasksForDay.filter((task) => task.completed);
   const categoryMap = {
     'dsa': 'dsa',
     'core-cs': 'coreCS',
@@ -139,13 +153,13 @@ const updateActivityLog = async (userId) => {
 
   for (const task of completedTasks) {
     const categoryKey = categoryMap[task.category] || 'dsa';
-    categoryBreakdown[categoryKey] += task.actualTime || 0;
+    categoryBreakdown[categoryKey] += getTaskMinutes(task);
     categoryCount[categoryKey] += 1;
   }
 
-  activityLog.tasksTotal = tasksToday.length;
+  activityLog.tasksTotal = tasksForDay.length;
   activityLog.tasksCompleted = completedTasks.length;
-  activityLog.minutesSpent = completedTasks.reduce((sum, task) => sum + (task.actualTime || 0), 0);
+  activityLog.minutesSpent = completedTasks.reduce((sum, task) => sum + getTaskMinutes(task), 0);
   activityLog.pomodoroSessions = completedTasks.reduce((sum, task) => sum + (task.pomodoroCount || 0), 0);
   activityLog.categoryBreakdown = categoryBreakdown;
   activityLog.categoryCount = categoryCount;
@@ -155,7 +169,7 @@ const updateActivityLog = async (userId) => {
     : 0;
 
   activityLog.completionRate = Math.min(100, Math.max(0, completionRate));
-  activityLog.productivityScore = Math.min(100, activityLog.completionRate);
+  activityLog.calculateProductivityScore();
 
   await activityLog.save();
   return activityLog;

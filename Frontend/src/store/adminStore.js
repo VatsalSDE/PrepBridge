@@ -15,6 +15,9 @@ const useAdminStore = create(
       communityPosts: [],
       communityPostsPagination: { page: 1, limit: 20, total: 0 },
       communityReports: [],
+      roadmapUsers: [],
+      roadmapUsersPagination: { page: 1, limit: 20, total: 0 },
+      selectedUserRoadmap: null,
       isLoading: false,
       error: null,
 
@@ -335,6 +338,71 @@ const useAdminStore = create(
         }
       },
 
+      fetchRoadmapUsers: async (page = 1, limit = 20, search = '') => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await adminService.getRoadmapUsers(page, limit, search);
+          set({
+            roadmapUsers: response.data || [],
+            roadmapUsersPagination: response.pagination || { page, limit, total: 0 },
+            isLoading: false,
+            error: null,
+          });
+          return response;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
+      },
+
+      fetchUserRoadmap: async (userId) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await adminService.getUserRoadmap(userId);
+          set({ selectedUserRoadmap: response.data, isLoading: false, error: null });
+          return response.data;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
+      },
+
+      toggleUserFoundationTopic: async (userId, section, sectionName, topicName) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await adminService.updateUserRoadmapFoundation(userId, section, sectionName, topicName);
+          set((state) => ({
+            selectedUserRoadmap: state.selectedUserRoadmap
+              ? { ...state.selectedUserRoadmap, roadmap: response.data }
+              : null,
+            isLoading: false,
+            error: null,
+          }));
+          return response.data;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
+      },
+
+      toggleUserDomainSkill: async (userId, roleId, skillName) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await adminService.updateUserRoadmapDomain(userId, roleId, skillName);
+          set((state) => ({
+            selectedUserRoadmap: state.selectedUserRoadmap
+              ? { ...state.selectedUserRoadmap, roadmap: response.data }
+              : null,
+            isLoading: false,
+            error: null,
+          }));
+          return response.data;
+        } catch (error) {
+          set({ isLoading: false, error: error.message });
+          throw error;
+        }
+      },
+
       logoutAdmin: () => {
         set({
           isAdmin: false,
@@ -347,6 +415,9 @@ const useAdminStore = create(
           communityPosts: [],
           communityPostsPagination: { page: 1, limit: 20, total: 0 },
           communityReports: [],
+          roadmapUsers: [],
+          roadmapUsersPagination: { page: 1, limit: 20, total: 0 },
+          selectedUserRoadmap: null,
           error: null,
         });
       },

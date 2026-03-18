@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { 
@@ -11,7 +12,6 @@ import {
   FileSearch,
   User,
   LogOut,
-  Settings,
   ChevronLeft,
   ChevronRight,
   Flame
@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import useAuthStore from '@/store/authStore';
-import useTaskStore from '@/store/taskStore';
+import useAchievementStore from '@/store/achievementStore';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -36,7 +36,22 @@ const navItems = [
 const Sidebar = ({ collapsed, onToggle }) => {
   const location = useLocation();
   const { logout, user } = useAuthStore();
-  const streak = useTaskStore((state) => state.streak);
+  const streak = useAchievementStore((state) => state.streaks?.currentStreak || 0);
+  const fetchAchievements = useAchievementStore((state) => state.fetchAchievements);
+
+  useEffect(() => {
+    fetchAchievements({ silent: true }).catch(() => {});
+  }, [fetchAchievements, location.pathname]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      fetchAchievements({ silent: true }).catch(() => {});
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [fetchAchievements]);
 
   return (
     <motion.aside
@@ -191,14 +206,6 @@ const Sidebar = ({ collapsed, onToggle }) => {
         )}
         
         <div className={cn("flex gap-2", collapsed && "flex-col items-center")}>
-          <Button
-            variant="ghost"
-            size={collapsed ? "icon" : "sm"}
-            className="text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent flex-1"
-          >
-            <Settings className="h-4 w-4" />
-            {!collapsed && <span>Settings</span>}
-          </Button>
           <Button
             variant="ghost"
             size={collapsed ? "icon" : "sm"}

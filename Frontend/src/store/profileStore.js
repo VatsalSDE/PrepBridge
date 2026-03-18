@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import profileService from '@/services/profileService';
 
 const DEFAULT_PROFILE = {
@@ -22,9 +23,12 @@ const DEFAULT_PROFILE = {
   avgProductivity: 0,
 };
 
-const useProfileStore = create((set, get) => ({
+const useProfileStore = create(
+  persist(
+    (set, get) => ({
   profile: DEFAULT_PROFILE,
   isLoading: false,
+  hasFetched: false,
   error: null,
 
   fetchProfile: async () => {
@@ -32,7 +36,7 @@ const useProfileStore = create((set, get) => ({
     try {
       const response = await profileService.getProfile();
       const nextProfile = { ...DEFAULT_PROFILE, ...(response?.data || {}) };
-      set({ profile: nextProfile, isLoading: false, error: null });
+      set({ profile: nextProfile, isLoading: false, hasFetched: true, error: null });
       return nextProfile;
     } catch (error) {
       set({ isLoading: false, error: error.message || 'Failed to fetch profile' });
@@ -45,7 +49,7 @@ const useProfileStore = create((set, get) => ({
     try {
       const response = await profileService.updateProfile(updates);
       const nextProfile = { ...DEFAULT_PROFILE, ...(response?.data || {}) };
-      set({ profile: nextProfile, isLoading: false, error: null });
+      set({ profile: nextProfile, isLoading: false, hasFetched: true, error: null });
       return nextProfile;
     } catch (error) {
       set({ isLoading: false, error: error.message || 'Failed to update profile' });
@@ -80,6 +84,11 @@ const useProfileStore = create((set, get) => ({
         tasksCompleted: Math.max(0, (state.profile.tasksCompleted || 0) + delta),
       },
     })),
-}));
+    }),
+    {
+      name: 'prepbridge-profile',
+    }
+  )
+);
 
 export default useProfileStore;

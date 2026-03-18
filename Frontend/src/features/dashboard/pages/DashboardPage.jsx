@@ -28,7 +28,10 @@ import { Progress } from '@/components/ui/progress';
 import dashboardService from '@/services/dashboardService';
 import taskService from '@/services/taskService';
 import useAuthStore from '@/store/authStore';
+import useProfileStore from '@/store/profileStore';
 import { getEncouragementMessage, getStreakMessage } from '@/utils/helpers';
+import { isProfileComplete } from '@/features/profile/utils/profileCompletion';
+import ProfileCompletionModal from '@/features/dashboard/components/ProfileCompletionModal';
 
 const AUTO_REFRESH_MS = 20000;
 
@@ -39,6 +42,8 @@ const formatSyncTime = (value) => {
 
 const DashboardPage = () => {
   const user = useAuthStore((state) => state.user);
+  const profile = useProfileStore((state) => state.profile);
+  const hasFetched = useProfileStore((state) => state.hasFetched);
 
   const [summary, setSummary] = useState(null);
   const [todayTasks, setTodayTasks] = useState([]);
@@ -46,6 +51,16 @@ const DashboardPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Show modal only if profile is incomplete (and profile has been fetched)
+  useEffect(() => {
+    if (hasFetched && !isProfileComplete(profile)) {
+      setShowProfileModal(true);
+    } else {
+      setShowProfileModal(false);
+    }
+  }, [hasFetched, profile]);
 
   const loadData = async (showLoader = false) => {
     if (showLoader) setIsRefreshing(true);
@@ -200,6 +215,12 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-8">
+      {showProfileModal && (
+        <ProfileCompletionModal
+          profile={profile}
+          onDismiss={() => setShowProfileModal(false)}
+        />
+      )}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground md:text-3xl">

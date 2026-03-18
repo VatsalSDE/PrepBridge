@@ -86,10 +86,9 @@ function FoundationSection({ section, onToggleTopic, isMutating }) {
                 <button
                   key={topic.name}
                   type="button"
-                  disabled={isMutating}
                   className={`w-full flex items-center justify-between p-3 rounded-lg transition-all text-left ${topic.completed
                     ? 'bg-success/10 border border-success/20'
-                    : 'bg-background/50 hover:bg-muted/40'} ${isMutating ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    : 'bg-background/50 hover:bg-muted/40'}`}
                   onClick={() => onToggleTopic(section.name, topic.name)}
                 >
                   <div className="flex items-center gap-3">
@@ -216,11 +215,10 @@ function DomainRoleDetail({ role, onClose, onToggleSkill, isMutating }) {
                 <button
                   key={skill.name}
                   type="button"
-                  disabled={isMutating}
                   onClick={() => onToggleSkill(role.roleId, skill.name)}
                   className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${skill.completed
                     ? 'bg-success/10 border border-success/20'
-                    : 'bg-muted/30 hover:bg-muted/50'} ${isMutating ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    : 'bg-muted/30 hover:bg-muted/50'}`}
                 >
                   <Checkbox
                     checked={skill.completed}
@@ -254,10 +252,12 @@ export default function RoadmapPage() {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
+      if (useRoadmapStore.getState().isMutating) return;
       fetchRoadmap({ silent: true }).catch(() => {});
-    }, 3000);
+    }, 60000);
 
     const onFocus = () => {
+      if (useRoadmapStore.getState().isMutating) return;
       fetchRoadmap({ silent: true }).catch(() => {});
     };
 

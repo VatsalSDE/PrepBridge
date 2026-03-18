@@ -404,16 +404,16 @@ const SignupPage = () => {
                   <InputOTP
                     maxLength={6}
                     value={otp}
-                    onChange={setOtp}
+                    onChange={(value) => setOtp(String(value || '').replace(/\D/g, ''))}
                     containerClassName="justify-center"
                     render={() => (
                       <InputOTPGroup className="gap-2">
-                        <InputOTPSlot index={0} className="h-12 w-12 rounded-md border text-xl" />
-                        <InputOTPSlot index={1} className="h-12 w-12 rounded-md border text-xl" />
-                        <InputOTPSlot index={2} className="h-12 w-12 rounded-md border text-xl" />
-                        <InputOTPSlot index={3} className="h-12 w-12 rounded-md border text-xl" />
-                        <InputOTPSlot index={4} className="h-12 w-12 rounded-md border text-xl" />
-                        <InputOTPSlot index={5} className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={0} mask className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={1} mask className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={2} mask className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={3} mask className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={4} mask className="h-12 w-12 rounded-md border text-xl" />
+                        <InputOTPSlot index={5} mask className="h-12 w-12 rounded-md border text-xl" />
                       </InputOTPGroup>
                     )}
                   />

@@ -44,13 +44,25 @@ import OnboardingWalkthrough from "./components/common/OnboardingWalkthrough";
 
 // Store
 import useAuthStore from "./store/authStore";
+import useProfileStore from "./store/profileStore";
 
 const queryClient = new QueryClient();
 
 // Protected Route wrapper with onboarding
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authUser = useAuthStore((state) => state.user);
+  const hasFetched = useProfileStore((state) => state.hasFetched);
+  const fetchProfile = useProfileStore((state) => state.fetchProfile);
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [profileCheckAttempted, setProfileCheckAttempted] = useState(false);
+
+  // Only refetch if we haven't attempted yet AND profile hasn't been fetched AND user is authenticated
+  const shouldRefetchProfile =
+    !profileCheckAttempted &&
+    !hasFetched &&
+    Boolean(authUser?.email);
 
   useEffect(() => {
     const onboardingComplete = localStorage.getItem('prepbridge_onboarding_complete');
@@ -59,8 +71,35 @@ const ProtectedRoute = ({ children }) => {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !shouldRefetchProfile || profileCheckAttempted) return;
+
+    let isMounted = true;
+    setIsCheckingProfile(true);
+    setProfileCheckAttempted(true);
+    
+    fetchProfile()
+      .catch(() => null)
+      .finally(() => {
+        if (isMounted) setIsCheckingProfile(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, shouldRefetchProfile, profileCheckAttempted, fetchProfile]);
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Only show checking screen if we're actively fetching
+  if (isCheckingProfile && !hasFetched) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Checking your profile...
+      </div>
+    );
   }
 
   return (

@@ -6,6 +6,7 @@ import { Mail, ArrowRight, Loader2, CheckCircle2, KeyRound, Lock } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import useAuthStore from '@/store/authStore';
 import { toast } from 'sonner';
 
@@ -17,12 +18,12 @@ const ForgotPasswordPage = () => {
 
   const [showResetScreen, setShowResetScreen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       email: '',
-      token: '',
       newPassword: '',
       confirmPassword: '',
     }
@@ -32,16 +33,17 @@ const ForgotPasswordPage = () => {
     try {
       await requestPasswordReset(data.email);
       setResetEmail(data.email);
+      setResetToken('');
       setShowResetScreen(true);
-      toast.success('Reset instructions sent. Check your email/token and continue.');
+      toast.success('Reset OTP sent. Check your email and continue.');
     } catch (error) {
       toast.error(error.message || 'Failed to start password reset. Please try again.');
     }
   };
 
   const onSubmitNewPassword = async (data) => {
-    if (!data.token?.trim()) {
-      toast.error('Reset token is required');
+    if (!resetToken || resetToken.length !== 6) {
+      toast.error('Please enter a valid 6-digit reset OTP');
       return;
     }
 
@@ -56,7 +58,7 @@ const ForgotPasswordPage = () => {
     }
 
     try {
-      await resetPasswordWithToken(data.token.trim(), data.newPassword);
+      await resetPasswordWithToken(resetToken, data.newPassword);
       toast.success('Password reset successful! 🎉');
       setResetSuccess(true);
     } catch (error) {
@@ -159,29 +161,36 @@ const ForgotPasswordPage = () => {
             <div className="mb-8">
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Set new password</h1>
               <p className="text-muted-foreground">
-                Enter the reset token from your email and create a new password for <span className="font-medium text-foreground">{resetEmail}</span>
+                Enter the reset OTP from your email and create a new password for <span className="font-medium text-foreground">{resetEmail}</span>
               </p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmitNewPassword)} className="space-y-5">
-              {/* Reset Token */}
+              {/* Reset OTP */}
               <div className="space-y-2">
-                <Label htmlFor="token">Reset token</Label>
+                <Label htmlFor="token">Reset OTP</Label>
                 <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="token"
-                    type="text"
-                    placeholder="Paste token from email"
-                    className="pl-10"
-                    {...register('token', {
-                      required: 'Reset token is required',
-                    })}
-                  />
+                  <KeyRound className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <div className="pl-6 flex justify-center">
+                    <InputOTP
+                      maxLength={6}
+                      value={resetToken}
+                      onChange={(value) => setResetToken(String(value || '').replace(/\D/g, ''))}
+                      containerClassName="justify-center"
+                      render={() => (
+                        <InputOTPGroup className="gap-2">
+                          <InputOTPSlot index={0} mask className="h-12 w-12 rounded-md border text-xl" />
+                          <InputOTPSlot index={1} mask className="h-12 w-12 rounded-md border text-xl" />
+                          <InputOTPSlot index={2} mask className="h-12 w-12 rounded-md border text-xl" />
+                          <InputOTPSlot index={3} mask className="h-12 w-12 rounded-md border text-xl" />
+                          <InputOTPSlot index={4} mask className="h-12 w-12 rounded-md border text-xl" />
+                          <InputOTPSlot index={5} mask className="h-12 w-12 rounded-md border text-xl" />
+                        </InputOTPGroup>
+                      )}
+                    />
+                  </div>
                 </div>
-                {errors.token && (
-                  <p className="text-sm text-destructive">{errors.token.message}</p>
-                )}
+                <p className="text-xs text-muted-foreground">Enter the 6-digit code sent to your email.</p>
               </div>
 
               {/* New Password */}

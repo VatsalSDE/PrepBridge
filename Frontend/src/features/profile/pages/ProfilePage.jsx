@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { containerVariants, itemVariants } from '@/utils/animations';
 import { TARGET_ROLES } from '@/utils/constants';
 import useProfileStore from '@/store/profileStore';
+import useAchievementStore from '@/store/achievementStore';
 import profileService from '@/services/profileService';
 import { API_BASE_URL } from '@/services/api';
 
@@ -52,6 +53,9 @@ export default function ProfilePage() {
   const uploadResume = useProfileStore((state) => state.uploadResume);
   const profileFromStore = useProfileStore((state) => state.profile);
   const isLoading = useProfileStore((state) => state.isLoading);
+  const earnedBadges = useAchievementStore((state) => state.earned);
+  const totalEarnedBadges = useAchievementStore((state) => state.totalEarned);
+  const fetchAchievements = useAchievementStore((state) => state.fetchAchievements);
 
   const [isEditing, setIsEditing] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', url: '' });
@@ -77,6 +81,10 @@ export default function ProfilePage() {
       toast.error(error.message || 'Failed to load profile');
     });
   }, [fetchProfile]);
+
+  useEffect(() => {
+    fetchAchievements({ silent: true }).catch(() => {});
+  }, [fetchAchievements]);
 
   useEffect(() => {
     setProfile({
@@ -267,6 +275,9 @@ export default function ProfilePage() {
 
     return { href: raw, label: raw };
   };
+
+  const previewBadges = (earnedBadges || []).slice(0, 3);
+  const extraBadgeCount = Math.max((totalEarnedBadges || 0) - previewBadges.length, 0);
 
   return (
     <motion.div
@@ -841,18 +852,27 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-warning to-streak flex items-center justify-center">
-                  🔥
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                  💻
-                </div>
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-success to-primary flex items-center justify-center">
-                  ⭐
-                </div>
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                  +5
-                </div>
+                {previewBadges.length > 0 ? (
+                  previewBadges.map((badge) => (
+                    <div
+                      key={badge._id || badge.name}
+                      className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center"
+                      title={badge.name || 'Badge'}
+                    >
+                      {badge.icon || '🏅'}
+                    </div>
+                  ))
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground" title="No badges earned yet">
+                    🏅
+                  </div>
+                )}
+
+                {extraBadgeCount > 0 && (
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                    +{extraBadgeCount}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

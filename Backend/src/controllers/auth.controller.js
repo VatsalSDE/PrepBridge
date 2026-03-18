@@ -278,8 +278,8 @@ const forgotPassword = asyncHandler(async (req, res) => {
     });
   }
   
-  // Generate reset token (simple version - use crypto in production)
-  const resetToken = Math.random().toString(36).substring(2, 15);
+  // Generate 6-digit reset OTP
+  const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
   
   user.resetPasswordToken = resetToken;
   user.resetPasswordExpiry = Date.now() + 30 * 60 * 1000;  // 30 minutes

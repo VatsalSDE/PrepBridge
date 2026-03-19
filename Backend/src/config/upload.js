@@ -1,16 +1,21 @@
-const multer = require('multer');
+const multer = require("multer");
 
-// Local upload middleware (memory buffer), used for resume PDFs.
 const uploadResumeMw = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF files are allowed'));
+      cb(new Error("Only PDF and Word documents are allowed"));
     }
   },
-}).single('resume');
+}).single("resume");
 
 module.exports = { uploadResumeMw };

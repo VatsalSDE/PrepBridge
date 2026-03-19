@@ -11,6 +11,7 @@ const RoadmapTemplate = require("../models/RoadmapTemplate");
 const anonymousService = require("../services/anonymous.service");
 const analyticsService = require("../services/analytics.service");
 const { asyncHandler, AppError } = require("../middleware/errorHandler");
+const axios = require("axios");
 
 const signToken = (userId) =>
   jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || "7d" });
@@ -112,26 +113,84 @@ const approveCompany = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Company approved", data: company });
 });
 
+
+// this is the static so adding the one of the puython service okk so yes 
+
+// const generateGuidelines = asyncHandler(async (req, res) => {
+//   const { rawAlumniInput = "" } = req.body;
+//   if (!rawAlumniInput.trim()) throw new AppError("rawAlumniInput is required", 400);
+
+//   const guidelines = rawAlumniInput
+//     .split(/\n|\./)
+//     .map((v) => v.trim())
+//     .filter(Boolean)
+//     .slice(0, 8);
+
+//   const company = await Company.findByIdAndUpdate(
+//     req.params.id,
+//     { rawAlumniInput, guidelines },
+//     { new: true, runValidators: true }
+//   );
+//   if (!company) throw new AppError("Company not found", 404);
+
+//   res.json({ success: true, data: company });
+// });
+
+// here i have added the api call to the python service for generating the guidelines based on the jd provided by the user and then updating the company with the generated guidelines
 const generateGuidelines = asyncHandler(async (req, res) => {
   const { rawAlumniInput = "" } = req.body;
   if (!rawAlumniInput.trim()) throw new AppError("rawAlumniInput is required", 400);
 
-  const guidelines = rawAlumniInput
-    .split(/\n|\./)
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .slice(0, 8);
+  const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
 
+  let mlResult;
+
+  try {
+    // Call FastAPI ML service
+    const response = await axios.post(`${ML_SERVICE_URL}/generate-guidelines`, {
+      rawAlumniInput,
+    });
+    mlResult = response.data.data;
+
+  } catch (err) {
+    // If ML service is down → graceful fallback to rule-based
+    console.error("ML service unavailable, using fallback:", err.message);
+    mlResult = {
+      roundStructure: ["Technical Round", "HR Round"],
+      difficultyEstimate: "Medium",
+      focusDistribution: { dsa: 30, coreCS: 25, systemDesign: 20, hr: 25 },
+      keyTopics: [],
+      preparationGuidelines: rawAlumniInput
+        .split(/\n|\./)
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, 8),
+    };
+  }
+  // here ends the model result processing and now we will update the company with the generated guidelines and other details
+  // Save everything to MongoDB
   const company = await Company.findByIdAndUpdate(
     req.params.id,
-    { rawAlumniInput, guidelines },
+    {
+      rawAlumniInput,
+      guidelines:          mlResult.preparationGuidelines  || [],
+      roundStructure:      mlResult.roundStructure         || [],
+      difficultyEstimate:  mlResult.difficultyEstimate     || "Medium",
+      keyTopics:           mlResult.keyTopics              || [],
+      focusDistribution: {
+        dsa:          mlResult.focusDistribution?.dsa          || mlResult.focusDistribution?.DSA          || 25,
+        coreCS:       mlResult.focusDistribution?.coreCS       || mlResult.focusDistribution?.["Core CS"]  || 25,
+        systemDesign: mlResult.focusDistribution?.systemDesign || mlResult.focusDistribution?.["System Design"] || 25,
+        hr:           mlResult.focusDistribution?.hr           || mlResult.focusDistribution?.HR           || 25,
+      },
+    },
     { new: true, runValidators: true }
   );
+
   if (!company) throw new AppError("Company not found", 404);
 
   res.json({ success: true, data: company });
 });
-
 // Moderation
 const getCommunityPosts = asyncHandler(async (req, res) => {
   const page = Number(req.query.page || 1);

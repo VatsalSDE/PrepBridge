@@ -5,6 +5,9 @@ const { protect } = require("../middleware/auth.middleware");
 const { isAdmin } = require("../middleware/admin.middleware");
 const admin = require("../controllers/admin.controller");
 
+// ✅ Login is PUBLIC — no middleware here
+router.post("/login", admin.adminLogin);
+
 router.use(protect, isAdmin);
 
 // dashboard

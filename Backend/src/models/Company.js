@@ -2,69 +2,80 @@ const mongoose = require("mongoose");
 
 const companySchema = new mongoose.Schema(
   {
-    name: { 
-     type: String,
-     required: true,
+    name: {
+      type: String,
+      required: true,
       trim: true,
-       maxlength: 120
-     },
-    logo: { 
+      maxlength: 120
+    },
+    logo: {
       type: String,
-       default: "🏢", 
-       trim: true 
-      },
-    city: { 
+      default: "🏢",
+      trim: true
+    },
+    city: {
       type: String,
-       required: true, 
-       trim: true, 
-       index: true 
-      },
+      required: true,
+      trim: true,
+      index: true
+    },
     industry: {
-       type: String, 
-       required: true, 
-       trim: true, 
-       index: true 
-      },
+      type: String,
+      required: true,
+      trim: true,
+      index: true
+    },
     websiteUrl: {
-       type: String,
-        trim: true, 
-        default: "" 
-      },
-    jd: { 
-      type: String, 
-      required: true, 
-      trim: true, 
-      maxlength: 20000 
+      type: String,
+      trim: true,
+      default: ""
+    },
+    jd: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 20000
     },
     interviewPattern: {
-       type: String,
-        trim: true, 
-        default: "Tech-heavy" 
-      },
+      type: String,
+      trim: true,
+      default: "Tech-heavy"
+    },
+    roundStructure: [{
+       type: String 
+      }],
+
+    difficultyEstimate: { 
+      type: String, default: "Medium"
+     },
+
+    keyTopics: [{ 
+      type: String
+     }],
     focusDistribution: {
       dsa: { type: Number, min: 0, max: 100, default: 25 },
       coreCS: { type: Number, min: 0, max: 100, default: 25 },
       systemDesign: { type: Number, min: 0, max: 100, default: 25 },
       hr: { type: Number, min: 0, max: 100, default: 25 },
     },
-    guidelines: [{ 
-      type: String, 
-      trim: true, 
-      maxlength: 500 
+    guidelines: [{
+      type: String,
+      trim: true,
+      maxlength: 500
     }],
-    rawAlumniInput: { 
-      type: String, 
-      trim: true, 
-      default: "" 
+    rawAlumniInput: {
+      type: String,
+      trim: true,
+      default: ""
     },
-    approved: { 
-      type: Boolean, 
+    approved: {
+      type: Boolean,
       default: false,
-       index: true 
-      },
-    createdBy: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User" 
+      index: true
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
     },
   },
   { timestamps: true },

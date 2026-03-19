@@ -147,7 +147,7 @@ const generateGuidelines = asyncHandler(async (req, res) => {
 
   try {
     // Call FastAPI ML service
-    const response = await axios.post(`${ML_SERVICE_URL}/generate-guidelines`, {
+    const response = await axios.post(`${ML_SERVICE_URL}/admin/generate-guidelines`, {
       rawAlumniInput,
     });
     mlResult = response.data.data;

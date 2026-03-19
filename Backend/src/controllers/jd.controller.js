@@ -2,6 +2,8 @@ const JDAnalysis = require('../models/JDAnalysis');
 const Company = require('../models/Company');
 const User = require('../models/User');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
+const axios = require('axios');
+const { extractTextFromFile } = require('../utils/resumeParser');
 
 const SKILL_LIBRARY = {
   technical: [
@@ -108,7 +110,7 @@ const toSummaryAnalysis = (analysis) => ({
   createdAt: analysis.createdAt,
 });
 
-// Get approved companies for JD matching (user side)
+// ─── Get approved companies ───────────────────────────────
 exports.getCompanies = asyncHandler(async (req, res) => {
   const { search = '', city = '', industry = '', page = 1, limit = 20 } = req.query;
   const parsedPage = Number(page) || 1;
@@ -137,95 +139,134 @@ exports.getCompanies = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: companies,
-    pagination: {
-      page: parsedPage,
-      limit: parsedLimit,
-      total,
-    },
+    pagination: { page: parsedPage, limit: parsedLimit, total },
   });
 });
 
-// Analyze JD (deterministic fallback until ML model integration)
+// ─── Analyze JD (AI powered) ──────────────────────────────
 exports.analyzeJD = asyncHandler(async (req, res) => {
-  const { companyId, jobTitle, company, jdText, resumeText = '', resumeSkills = [] } = req.body;
+  const {
+    companyId,
+    jobTitle,
+    company,
+    resumeText: bodyResumeText = "",
+  } = req.body;
 
+  // Step 1 → Extract resume text from uploaded file OR use pasted text
+  let resumeText = bodyResumeText;
+  if (req.file) {
+    try {
+      resumeText = await extractTextFromFile(req.file);
+    } catch (err) {
+      throw new AppError(err.message || "Failed to extract text from file", 400);
+    }
+  }
+
+  if (!resumeText.trim()) {
+    throw new AppError("Resume is required — upload a PDF/Word file or paste text", 400);
+  }
+
+  // Step 2 → Resolve company and JD text
   let selectedCompany = null;
-  let resolvedJDText = jdText;
+  let resolvedJDText = req.body.jdText;
   let resolvedCompanyName = company;
   let resolvedJobTitle = jobTitle;
 
   if (companyId) {
     selectedCompany = await Company.findById(companyId);
     if (!selectedCompany || !selectedCompany.approved) {
-      throw new AppError('Approved company not found', 404);
+      throw new AppError("Approved company not found", 404);
     }
     resolvedJDText = selectedCompany.jd;
     resolvedCompanyName = selectedCompany.name;
     if (!resolvedJobTitle) {
-      resolvedJobTitle = selectedCompany.interviewPattern || 'Software Engineer';
+      resolvedJobTitle = selectedCompany.interviewPattern || "Software Engineer";
     }
   }
 
   if (!resolvedJobTitle || !resolvedJDText) {
-    throw new AppError('companyId or both jobTitle and jdText are required', 400);
+    throw new AppError("companyId or both jobTitle and jdText are required", 400);
   }
 
-  const user = await User.findById(req.user.id).select('skills');
-  const userSkillSet = buildUserSkillSet([...(user?.skills || []), ...(resumeSkills || [])], resumeText);
-  const extractedSkills = extractSkillCandidates(resolvedJDText);
+  const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
 
-  const matchedSkills = extractedSkills
-    .filter((item) => {
-      const normalizedSkill = normalizeText(item.skill);
-      return Array.from(userSkillSet).some((skill) => normalizedSkill.includes(skill) || skill.includes(normalizedSkill));
-    })
-    .map((item) => ({
-      skill: item.skill,
-      userLevel: getSkillLevel(item.skill, resumeText),
-    }));
+  let mlResult;
 
-  const matchedSet = new Set(matchedSkills.map((item) => normalizeText(item.skill)));
-  const missingSkills = extractedSkills
-    .filter((item) => !matchedSet.has(normalizeText(item.skill)))
-    .map((item) => ({
-      skill: item.skill,
-      category: item.category,
-      importance: item.importance,
-    }));
+  try {
+    // Step 3 → Call FastAPI ML service
+    const response = await axios.post(`${ML_SERVICE_URL}/user/analyze-jd`, {
+      jdText: resolvedJDText,
+      resumeText,
+      jobTitle: resolvedJobTitle,
+      companyName: resolvedCompanyName || "the company",
+    });
+    mlResult = response.data.data;
+    console.log("✅ ML JD analysis received");
 
-  const requiredSkills = extractedSkills.filter((item) => item.importance === 'required').length || extractedSkills.length || 1;
-  const requiredMatched = extractedSkills
-    .filter((item) => item.importance === 'required')
-    .filter((item) => matchedSet.has(normalizeText(item.skill))).length;
-  const baseMatch = extractedSkills.length > 0
-    ? Math.round((matchedSkills.length / extractedSkills.length) * 100)
-    : 0;
-  const weightedBonus = Math.round((requiredMatched / requiredSkills) * 20);
-  const matchScore = Math.max(0, Math.min(100, baseMatch + weightedBonus));
+  } catch (err) {
+    // Step 4 → Fallback to rule-based if ML service is down
+    console.error("ML service unavailable, using fallback:", err.message);
 
-  const recommendations = buildRecommendations(missingSkills);
+    const user = await User.findById(req.user.id).select("skills");
+    const userSkillSet = buildUserSkillSet([...(user?.skills || [])], resumeText);
+    const extractedSkills = extractSkillCandidates(resolvedJDText);
 
+    const matchedSkills = extractedSkills
+      .filter((item) => {
+        const normalizedSkill = normalizeText(item.skill);
+        return Array.from(userSkillSet).some(
+          (skill) => normalizedSkill.includes(skill) || skill.includes(normalizedSkill)
+        );
+      })
+      .map((item) => ({
+        skill: item.skill,
+        userLevel: getSkillLevel(item.skill, resumeText),
+      }));
+
+    const matchedSet = new Set(matchedSkills.map((item) => normalizeText(item.skill)));
+    const missingSkills = extractedSkills
+      .filter((item) => !matchedSet.has(normalizeText(item.skill)))
+      .map((item) => ({
+        skill: item.skill,
+        category: item.category,
+        importance: item.importance,
+      }));
+
+    const matchScore = extractedSkills.length > 0
+      ? Math.round((matchedSkills.length / extractedSkills.length) * 100)
+      : 0;
+
+    mlResult = {
+      matchScore,
+      matchedSkills,
+      missingSkills,
+      extractedSkills,
+      recommendations: buildRecommendations(missingSkills),
+    };
+  }
+
+  // Step 5 → Save to MongoDB
   const analysis = await JDAnalysis.create({
     userId: req.user.id,
     companyId: selectedCompany?._id,
     jobTitle: resolvedJobTitle,
-    company: resolvedCompanyName || 'Custom JD',
+    company: resolvedCompanyName || "Custom JD",
     jdText: resolvedJDText,
-    extractedSkills,
-    matchedSkills,
-    missingSkills,
-    matchScore,
-    recommendations,
+    extractedSkills:  mlResult.extractedSkills  || [],
+    matchedSkills:    mlResult.matchedSkills     || [],
+    missingSkills:    mlResult.missingSkills     || [],
+    matchScore:       mlResult.matchScore        || 0,
+    recommendations:  mlResult.recommendations   || [],
   });
 
   res.status(201).json({
     success: true,
     data: toSummaryAnalysis(analysis),
-    message: 'JD analysis generated successfully. ML scoring integration will replace deterministic scoring later.',
+    message: "JD analysis completed successfully using AI",
   });
 });
 
-// Get analysis history
+// ─── Get history ──────────────────────────────────────────
 exports.getHistory = asyncHandler(async (req, res) => {
   const { savedOnly, page = 1, limit = 10 } = req.query;
   const parsedPage = Number(page) || 1;
@@ -245,85 +286,45 @@ exports.getHistory = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: analyses,
-    pagination: {
-      page: parsedPage,
-      limit: parsedLimit,
-      total,
-    },
+    pagination: { page: parsedPage, limit: parsedLimit, total },
   });
 });
 
-// Get single analysis
+// ─── Get single analysis ──────────────────────────────────
 exports.getAnalysis = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const analysis = await JDAnalysis.findById(req.params.id)
+    .populate('companyId', 'name logo city industry websiteUrl interviewPattern focusDistribution guidelines');
 
-  const analysis = await JDAnalysis.findById(id).populate('companyId', 'name logo city industry websiteUrl interviewPattern focusDistribution guidelines');
+  if (!analysis) throw new AppError('Analysis not found', 404);
+  if (analysis.userId.toString() !== req.user.id) throw new AppError('Not authorized', 403);
 
-  if (!analysis) {
-    throw new AppError('Analysis not found', 404);
-  }
-
-  if (analysis.userId.toString() !== req.user.id) {
-    throw new AppError('Not authorized', 403);
-  }
-
-  res.json({
-    success: true,
-    data: analysis,
-  });
+  res.json({ success: true, data: analysis });
 });
 
-// Toggle save analysis
+// ─── Toggle save ──────────────────────────────────────────
 exports.toggleSave = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const analysis = await JDAnalysis.findById(id);
-
-  if (!analysis) {
-    throw new AppError('Analysis not found', 404);
-  }
-
-  if (analysis.userId.toString() !== req.user.id) {
-    throw new AppError('Not authorized', 403);
-  }
+  const analysis = await JDAnalysis.findById(req.params.id);
+  if (!analysis) throw new AppError('Analysis not found', 404);
+  if (analysis.userId.toString() !== req.user.id) throw new AppError('Not authorized', 403);
 
   analysis.isSaved = !analysis.isSaved;
   await analysis.save();
 
-  res.json({
-    success: true,
-    data: { isSaved: analysis.isSaved },
-  });
+  res.json({ success: true, data: { isSaved: analysis.isSaved } });
 });
 
-// Delete analysis
+// ─── Delete analysis ──────────────────────────────────────
 exports.deleteAnalysis = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const analysis = await JDAnalysis.findById(req.params.id);
+  if (!analysis) throw new AppError('Analysis not found', 404);
+  if (analysis.userId.toString() !== req.user.id) throw new AppError('Not authorized', 403);
 
-  const analysis = await JDAnalysis.findById(id);
-
-  if (!analysis) {
-    throw new AppError('Analysis not found', 404);
-  }
-
-  if (analysis.userId.toString() !== req.user.id) {
-    throw new AppError('Not authorized', 403);
-  }
-
-  await JDAnalysis.findByIdAndDelete(id);
-
-  res.json({
-    success: true,
-    message: 'Analysis deleted',
-  });
+  await JDAnalysis.findByIdAndDelete(req.params.id);
+  res.json({ success: true, message: 'Analysis deleted' });
 });
 
-// Get skill gaps across analyses
+// ─── Skill gaps ───────────────────────────────────────────
 exports.getSkillGaps = asyncHandler(async (req, res) => {
   const skillGaps = await JDAnalysis.getSkillGaps(req.user.id);
-
-  res.json({
-    success: true,
-    data: skillGaps,
-  });
+  res.json({ success: true, data: skillGaps });
 });

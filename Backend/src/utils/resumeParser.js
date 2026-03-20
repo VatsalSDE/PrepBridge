@@ -1,4 +1,3 @@
-const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 
 const extractTextFromFile = async (file) => {
@@ -6,6 +5,8 @@ const extractTextFromFile = async (file) => {
 
   // PDF extraction
   if (mimetype === "application/pdf") {
+    // Import inside function to avoid pdf-parse startup bug
+    const pdfParse = require("pdf-parse/lib/pdf-parse");
     const data = await pdfParse(buffer);
     return data.text?.trim() || "";
   }

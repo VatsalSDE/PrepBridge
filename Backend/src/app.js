@@ -125,6 +125,23 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+
+// ================================
+// SESSION + PASSPORT (OAuth)
+// ================================
+const session = require("express-session");
+const passport = require("./config/passport");
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || "prepbridge_secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
 // ================================
 // MOUNT ALL ROUTES
 // ================================

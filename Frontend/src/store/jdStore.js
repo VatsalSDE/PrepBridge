@@ -15,11 +15,7 @@ const useJDStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await jdService.getCompanies(params);
-      set({
-        companies: response?.data || [],
-        isLoading: false,
-        error: null,
-      });
+      set({ companies: response?.data || [], isLoading: false, error: null });
       return response?.data || [];
     } catch (error) {
       set({ isLoading: false, error: error.message || 'Failed to load companies' });
@@ -55,10 +51,11 @@ const useJDStore = create((set, get) => ({
     }
   },
 
-  analyzeJD: async (payload) => {
+  // ✅ CHANGED: accepts isFormData flag
+  analyzeJD: async (payload, isFormData = false) => {
     set({ isAnalyzing: true, error: null });
     try {
-      const response = await jdService.analyzeJD(payload);
+      const response = await jdService.analyzeJD(payload, isFormData);
       const analysis = response?.data || null;
       set((state) => ({
         currentAnalysis: analysis,

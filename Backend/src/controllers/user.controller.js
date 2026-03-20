@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 const fs = require('fs/promises');
 const path = require('path');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
-const { uploadResumeMw } = require('../config/upload');
+const { uploadResumeMw } = require('../config/resumeUpload');
 
 const resumesDir = path.join(__dirname, '..', '..', 'uploads', 'resumes');
 

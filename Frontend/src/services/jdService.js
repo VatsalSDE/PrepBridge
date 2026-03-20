@@ -1,4 +1,4 @@
-import { apiRequest } from '@/services/api';
+import { apiRequest, apiUpload } from '@/services/api';
 
 const jdService = {
   getCompanies({ search = '', city = '', industry = '', page = 1, limit = 50 } = {}) {
@@ -9,11 +9,14 @@ const jdService = {
       page: String(page),
       limit: String(limit),
     });
-
     return apiRequest(`/jd/companies?${params.toString()}`, { auth: true, authType: 'user' });
   },
 
-  analyzeJD(payload) {
+  // ✅ CHANGED: handles both FormData and JSON
+  analyzeJD(payload, isFormData = false) {
+    if (isFormData) {
+      return apiUpload('/jd/analyze', payload, 'user');
+    }
     return apiRequest('/jd/analyze', {
       method: 'POST',
       auth: true,
@@ -28,7 +31,6 @@ const jdService = {
       page: String(page),
       limit: String(limit),
     });
-
     return apiRequest(`/jd/history?${params.toString()}`, { auth: true, authType: 'user' });
   },
 

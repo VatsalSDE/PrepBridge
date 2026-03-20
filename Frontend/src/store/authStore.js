@@ -140,6 +140,17 @@ const useAuthStore = create(
       clearError: () => {
         set({ error: null });
       },
+
+      // ✅ NEW: OAuth token setter
+setOAuthToken: ({ token, name, email }) => {
+  set({
+    token,
+    user: { name, email, role: "student" },
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+  });
+},
     }),
     {
       name: 'prepbridge-auth',

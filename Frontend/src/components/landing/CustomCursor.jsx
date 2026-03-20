@@ -1,216 +1,213 @@
-import { useEffect, useState, useRef } from 'react';
-import { motion, useSpring, useMotionValue, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion, motionValue, useMotionValue, useSpring } from "framer-motion";
 
-// Particle trail system
-function useTrailParticles(x, y) {
-  const [particles, setParticles] = useState([]);
-  const lastPos = useRef({ x: 0, y: 0 });
-  const idRef = useRef(0);
+const OUTER_SIZE = 40;
+const INNER_SIZE = 6;
+const TRAIL_COUNT = 8;
 
-  useEffect(() => {
-    const unsub = x.on('change', (latestX) => {
-      const latestY = y.get();
-      const dx = latestX - lastPos.current.x;
-      const dy = latestY - lastPos.current.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+const clickableSelector = [
+  "a",
+  "button",
+  "input",
+  "textarea",
+  "select",
+  "label",
+  "summary",
+  "[role='button']",
+  "[data-cursor='pointer']",
+].join(",");
 
-      if (dist > 8) {
-        lastPos.current = { x: latestX, y: latestY };
-        const id = idRef.current++;
-        setParticles((prev) => [
-          ...prev.slice(-12),
-          {
-            id,
-            x: latestX,
-            y: latestY,
-            size: 4 + Math.random() * 6,
-            life: 600 + Math.random() * 400,
-          },
-        ]);
-
-        setTimeout(() => {
-          setParticles((prev) => prev.filter((p) => p.id !== id));
-        }, 800);
-      }
-    });
-    return unsub;
-  }, [x, y]);
-
-  return particles;
-}
+const supportsEventListener = (mediaQueryList) => typeof mediaQueryList.addEventListener === "function";
 
 const CustomCursor = () => {
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [isPointer, setIsPointer] = useState(false);
-  const cursorX = useMotionValue(-100);
-  const cursorY = useMotionValue(-100);
+  const [isInteractive, setIsInteractive] = useState(false);
+  const [isClicking, setIsClicking] = useState(false);
 
-  const springConfig = { stiffness: 250, damping: 22, mass: 0.5 };
-  const smoothX = useSpring(cursorX, springConfig);
-  const smoothY = useSpring(cursorY, springConfig);
+  const mouseX = useMotionValue(-120);
+  const mouseY = useMotionValue(-120);
 
-  const particles = useTrailParticles(cursorX, cursorY);
+  const outerX = useSpring(mouseX, { stiffness: 150, damping: 15, mass: 0.18 });
+  const outerY = useSpring(mouseY, { stiffness: 150, damping: 15, mass: 0.18 });
+
+  const trailDots = useMemo(
+    () =>
+      Array.from({ length: TRAIL_COUNT }, () => ({
+        x: motionValue(-120),
+        y: motionValue(-120),
+      })),
+    [],
+  );
+
+  const rafRef = useRef(0);
 
   useEffect(() => {
-    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-    if (isTouchDevice) return;
+    if (typeof window === "undefined") return undefined;
 
-    const handleMouseMove = (e) => {
-      cursorX.set(e.clientX);
-      cursorY.set(e.clientY);
+    const pointerMedia = window.matchMedia("(pointer: coarse)");
+    const updatePointerType = () => setIsTouchDevice(pointerMedia.matches);
+
+    updatePointerType();
+
+    if (supportsEventListener(pointerMedia)) {
+      pointerMedia.addEventListener("change", updatePointerType);
+      return () => pointerMedia.removeEventListener("change", updatePointerType);
+    }
+
+    pointerMedia.addListener(updatePointerType);
+    return () => pointerMedia.removeListener(updatePointerType);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isTouchDevice) return undefined;
+
+    const handleMove = (event) => {
+      mouseX.set(event.clientX);
+      mouseY.set(event.clientY);
       if (!isVisible) setIsVisible(true);
     };
 
     const handleMouseLeave = () => setIsVisible(false);
     const handleMouseEnter = () => setIsVisible(true);
+    const handleDown = () => setIsClicking(true);
+    const handleUp = () => setIsClicking(false);
 
-    const handlePointerCheck = (e) => {
-      const target = e.target;
-      const isClickable =
-        target.tagName === 'A' ||
-        target.tagName === 'BUTTON' ||
-        target.closest('a') ||
-        target.closest('button') ||
-        window.getComputedStyle(target).cursor === 'pointer';
-      setIsPointer(isClickable);
+    const handleOver = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      setIsInteractive(Boolean(target.closest(clickableSelector)));
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseenter', handleMouseEnter);
-    document.addEventListener('mouseleave', handleMouseLeave);
-    document.addEventListener('mouseover', handlePointerCheck);
+    const handleOut = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      if (!target.closest(clickableSelector)) {
+        setIsInteractive(false);
+      }
+    };
+
+    window.addEventListener("mousemove", handleMove, { passive: true });
+    window.addEventListener("mousedown", handleDown);
+    window.addEventListener("mouseup", handleUp);
+    document.addEventListener("mouseover", handleOver);
+    document.addEventListener("mouseout", handleOut);
+    document.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("mouseenter", handleMouseEnter);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseenter', handleMouseEnter);
-      document.removeEventListener('mouseleave', handleMouseLeave);
-      document.removeEventListener('mouseover', handlePointerCheck);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mousedown", handleDown);
+      window.removeEventListener("mouseup", handleUp);
+      document.removeEventListener("mouseover", handleOver);
+      document.removeEventListener("mouseout", handleOut);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      document.removeEventListener("mouseenter", handleMouseEnter);
     };
-  }, [isVisible]);
+  }, [isTouchDevice, isVisible, mouseX, mouseY]);
 
-  if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) {
+  useEffect(() => {
+    if (isTouchDevice) return undefined;
+
+    const animateTrail = () => {
+      let previousX = mouseX.get();
+      let previousY = mouseY.get();
+
+      trailDots.forEach((dot, index) => {
+        const followStrength = Math.max(0.12, 0.34 - index * 0.03);
+        const nextX = dot.x.get() + (previousX - dot.x.get()) * followStrength;
+        const nextY = dot.y.get() + (previousY - dot.y.get()) * followStrength;
+
+        dot.x.set(nextX);
+        dot.y.set(nextY);
+
+        previousX = nextX;
+        previousY = nextY;
+      });
+
+      rafRef.current = window.requestAnimationFrame(animateTrail);
+    };
+
+    rafRef.current = window.requestAnimationFrame(animateTrail);
+
+    return () => {
+      window.cancelAnimationFrame(rafRef.current);
+    };
+  }, [isTouchDevice, mouseX, mouseY, trailDots]);
+
+  if (isTouchDevice) {
     return null;
   }
 
+  const outerScale = isClicking ? 0.8 : isInteractive ? 1.5 : 1;
+
   return (
-    <>
-      <style>{`
-        .landing-custom-cursor,
-        .landing-custom-cursor * {
-          cursor: none !important;
-        }
-      `}</style>
+    <div className="pointer-events-none fixed inset-0 z-[90]">
+      {trailDots.map((dot, index) => {
+        const opacity = 0.6 - index * ((0.6 - 0.05) / (TRAIL_COUNT - 1));
+        const size = Math.max(1.5, 3 - index * 0.2);
 
-      {/* Flame trail particles */}
-      <AnimatePresence>
-        {particles.map((p) => (
+        return (
           <motion.div
-            key={p.id}
-            initial={{ opacity: 0.9, scale: 1 }}
-            animate={{ opacity: 0, scale: 0.2, y: -20 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="fixed pointer-events-none z-[9997]"
+            key={`trail-${index}`}
+            className="absolute rounded-full bg-violet-400"
             style={{
-              left: p.x - p.size / 2,
-              top: p.y - p.size / 2,
-              width: p.size,
-              height: p.size,
+              x: dot.x,
+              y: dot.y,
+              width: size,
+              height: size,
+              opacity: isVisible ? opacity : 0,
+              translateX: "-50%",
+              translateY: "-50%",
             }}
-          >
-            <div
-              className="w-full h-full rounded-full"
-              style={{
-                background: `radial-gradient(circle, hsla(25, 95%, 60%, 0.9), hsla(38, 92%, 55%, 0.6), hsla(0, 80%, 50%, 0.3), transparent)`,
-              }}
-            />
-          </motion.div>
-        ))}
-      </AnimatePresence>
+          />
+        );
+      })}
 
-      {/* Outer flame glow */}
       <motion.div
-        className="fixed top-0 left-0 z-[9998] pointer-events-none"
+        className="absolute rounded-full border-2 border-violet-500"
         style={{
-          x: smoothX,
-          y: smoothY,
-          translateX: '-50%',
-          translateY: '-50%',
+          x: outerX,
+          y: outerY,
+          width: OUTER_SIZE,
+          height: OUTER_SIZE,
+          translateX: "-50%",
+          translateY: "-50%",
         }}
         animate={{
-          opacity: isVisible ? 0.7 : 0,
-          scale: isPointer ? 2 : 1,
+          scale: outerScale,
+          opacity: isVisible ? 0.6 : 0,
+          backgroundColor: isInteractive ? "rgba(124,58,237,0.10)" : "rgba(124,58,237,0)",
         }}
-        transition={{ duration: 0.2 }}
-      >
-        <div
-          className="w-10 h-10 rounded-full"
-          style={{
-            background: 'radial-gradient(circle, hsla(25, 95%, 55%, 0.5), hsla(38, 92%, 50%, 0.3), transparent 70%)',
-            filter: 'blur(4px)',
-          }}
-        />
-      </motion.div>
+        transition={
+          isClicking
+            ? { duration: 0.05, ease: "linear" }
+            : { type: "spring", stiffness: 230, damping: 18, mass: 0.28 }
+        }
+      />
 
-      {/* Inner cursor core */}
       <motion.div
-        className="fixed top-0 left-0 z-[9999] pointer-events-none"
+        className="absolute rounded-full bg-white"
         style={{
-          x: smoothX,
-          y: smoothY,
-          translateX: '-50%',
-          translateY: '-50%',
+          x: mouseX,
+          y: mouseY,
+          width: INNER_SIZE,
+          height: INNER_SIZE,
+          translateX: "-50%",
+          translateY: "-50%",
         }}
         animate={{
-          scale: isPointer ? 1.8 : 1,
+          scale: isClicking ? 0 : 1,
           opacity: isVisible ? 1 : 0,
         }}
-        transition={{ duration: 0.15 }}
-      >
-        <div
-          className={`rounded-full ${
-            isPointer
-              ? 'w-6 h-6'
-              : 'w-4 h-4'
-          }`}
-          style={{
-            background: isPointer
-              ? 'radial-gradient(circle, hsla(25, 95%, 60%, 0.6), hsla(38, 92%, 55%, 0.3), transparent 70%)'
-              : 'radial-gradient(circle, hsla(25, 95%, 65%, 1), hsla(38, 92%, 55%, 0.8), hsla(0, 80%, 50%, 0.4))',
-            boxShadow: '0 0 12px 4px hsla(25, 95%, 55%, 0.5), 0 0 24px 8px hsla(38, 92%, 50%, 0.3)',
-          }}
-        />
-      </motion.div>
-
-      {/* Flickering flame spike above cursor */}
-      <motion.div
-        className="fixed top-0 left-0 z-[9999] pointer-events-none"
-        style={{
-          x: smoothX,
-          y: smoothY,
-          translateX: '-50%',
-          translateY: '-110%',
-        }}
-        animate={{
-          opacity: isVisible ? [0.6, 0.9, 0.5, 0.8] : 0,
-          scaleY: isPointer ? [0.8, 1.2, 0.9] : [1, 1.4, 0.8, 1.2],
-          scaleX: [0.8, 1, 0.9],
-        }}
-        transition={{
-          duration: 0.4,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-      >
-        <div
-          className="w-3 h-5 rounded-full"
-          style={{
-            background: 'linear-gradient(to top, hsla(25, 95%, 60%, 0.9), hsla(38, 92%, 55%, 0.6), hsla(45, 100%, 70%, 0.2), transparent)',
-            filter: 'blur(1px)',
-          }}
-        />
-      </motion.div>
-    </>
+        transition={
+          isClicking
+            ? { duration: 0.05, ease: "linear" }
+            : { type: "spring", stiffness: 300, damping: 22, mass: 0.24 }
+        }
+      />
+    </div>
   );
 };
 

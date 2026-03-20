@@ -159,11 +159,10 @@
 @layer base {
   * {
     @apply border-border;
-    transition: background-color 300ms ease, color 200ms ease, border-color 300ms ease, box-shadow 300ms ease;
   }
 
   html {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
   }
 
   body {

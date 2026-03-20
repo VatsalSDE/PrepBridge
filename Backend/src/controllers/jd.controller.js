@@ -132,7 +132,7 @@ exports.getCompanies = asyncHandler(async (req, res) => {
       .sort({ name: 1 })
       .skip((parsedPage - 1) * parsedLimit)
       .limit(parsedLimit)
-      .select('name logo city industry websiteUrl jd interviewPattern focusDistribution guidelines rawAlumniInput approved'),
+      .select('name logo city industry websiteUrl jd interviewPattern focusDistribution guidelines rawAlumniInput roundStructure difficultyEstimate keyTopics approved'),
     Company.countDocuments(query),
   ]);
 

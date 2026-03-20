@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AnimatePresence } from 'framer-motion';
-
+import OAuthCallback from "./features/auth/pages/OAuthCallback";
 // Layouts
 import DashboardLayout from "./components/layout/DashboardLayout";
 import AuthLayout from "./components/layout/AuthLayout";
@@ -41,6 +41,7 @@ import AdminSettingsPage from "./features/admin/pages/AdminSettingsPage";
 
 // Components
 import OnboardingWalkthrough from "./components/common/OnboardingWalkthrough";
+import IntroScreen from "./components/IntroScreen";
 
 // Store
 import useAuthStore from "./store/authStore";
@@ -149,7 +150,7 @@ const AuthBootstrap = () => {
   return null;
 };
 
-const App = () => (
+const AppShell = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -214,11 +215,29 @@ const App = () => (
               <Route path="/admin/settings" element={<AdminSettingsPage />} />
             </Route>
             
-            <Route path="*" element={<NotFound />} />
+            <Route path="/oauth/callback" element={<OAuthCallback />} />
           </Routes>
         </AnimatePresence>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
+
+const App = () => {
+  const [showIntro, setShowIntro] = useState(true);
+
+  useEffect(() => {
+    document.documentElement.classList.add("dark");
+  }, []);
+
+  return (
+    <>
+      {showIntro && <IntroScreen onComplete={() => setShowIntro(false)} />}
+      <div className={showIntro ? "opacity-0" : "opacity-100 transition-opacity duration-300"}>
+        <AppShell />
+      </div>
+    </>
+  );
+};
+
 export default App;

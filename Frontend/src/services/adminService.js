@@ -9,6 +9,19 @@ const adminService = {
     return apiRequest('/admin/dashboard', { auth: true, authType: 'admin' });
   },
 
+  getSettings() {
+    return apiRequest('/admin/settings', { auth: true, authType: 'admin' });
+  },
+
+  updateSettings(payload) {
+    return apiRequest('/admin/settings', {
+      method: 'PUT',
+      auth: true,
+      authType: 'admin',
+      body: payload,
+    });
+  },
+
   getUsers(page = 1, limit = 20) {
     return apiRequest(`/admin/users?page=${page}&limit=${limit}`, { auth: true, authType: 'admin' });
   },

@@ -10,7 +10,28 @@ const RoadmapProgress = require("../models/RoadmapProgress");
 const RoadmapTemplate = require("../models/RoadmapTemplate");
 const anonymousService = require("../services/anonymous.service");
 const analyticsService = require("../services/analytics.service");
+const {
+  getSettings,
+  updateSettings,
+} = require("../services/platformSettings.service");
 const { asyncHandler, AppError } = require("../middleware/errorHandler");
+
+const ensureCommunityModerationEnabled = async () => {
+  const settings = await getSettings();
+  if (!settings.communityModeration) {
+    throw new AppError("Community moderation is currently disabled", 403);
+  }
+};
+
+const getPlatformSettings = asyncHandler(async (_req, res) => {
+  const settings = await getSettings();
+  res.json({ success: true, data: settings });
+});
+
+const updatePlatformSettings = asyncHandler(async (req, res) => {
+  const settings = await updateSettings(req.body || {}, req.user?._id || null);
+  res.json({ success: true, message: "Platform settings updated", data: settings });
+});
 const axios = require("axios");
 
 const signToken = (userId) =>
@@ -281,6 +302,7 @@ const deleteCommunityPost = asyncHandler(async (req, res) => {
 });
 
 const getCommunityReports = asyncHandler(async (_req, res) => {
+  await ensureCommunityModerationEnabled();
   const reports = await PostReport.find({})
     .populate("postId", "title content isHidden reportCount")
     .populate("reporterId", "name email")
@@ -291,6 +313,7 @@ const getCommunityReports = asyncHandler(async (_req, res) => {
 });
 
 const hidePost = asyncHandler(async (req, res) => {
+  await ensureCommunityModerationEnabled();
   const post = await CommunityPost.findByIdAndUpdate(
     req.params.id,
     { isHidden: true, hiddenAt: new Date() },
@@ -301,6 +324,7 @@ const hidePost = asyncHandler(async (req, res) => {
 });
 
 const unhidePost = asyncHandler(async (req, res) => {
+  await ensureCommunityModerationEnabled();
   const post = await CommunityPost.findByIdAndUpdate(
     req.params.id,
     { isHidden: false, hiddenAt: null },
@@ -311,6 +335,7 @@ const unhidePost = asyncHandler(async (req, res) => {
 });
 
 const resolveReport = asyncHandler(async (req, res) => {
+  await ensureCommunityModerationEnabled();
   const report = await PostReport.findById(req.params.id);
   if (!report) throw new AppError("Report not found", 404);
   if (report.status !== "pending") throw new AppError("Only pending report can be resolved", 400);
@@ -355,6 +380,7 @@ const resolveReport = asyncHandler(async (req, res) => {
 });
 
 const dismissReport = asyncHandler(async (req, res) => {
+  await ensureCommunityModerationEnabled();
   const report = await PostReport.findById(req.params.id);
   if (!report) throw new AppError("Report not found", 404);
   if (report.status !== "pending") throw new AppError("Only pending report can be dismissed", 400);
@@ -616,6 +642,8 @@ const updateUserRoadmapDomain = asyncHandler(async (req, res) => {
 
 module.exports = {
   adminLogin,
+  getPlatformSettings,
+  updatePlatformSettings,
   getUsers,
   getUserDetails,
   banUser,

@@ -7,6 +7,7 @@
 
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { getSettings } = require("../services/platformSettings.service");
 
 /**
  * Protect Middleware - Verify JWT Token
@@ -87,7 +88,8 @@ const protect = async (req, res, next) => {
     }
     
     // Check if user is verified (for students)
-    if (!user.isVerified && user.role === "student") {
+    const settings = await getSettings();
+    if (settings.requireEmailVerification && !user.isVerified && user.role === "student") {
       return res.status(403).json({
         success: false,
         message: "Please verify your email first."

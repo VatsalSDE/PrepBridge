@@ -9,6 +9,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { AppError, asyncHandler } = require("../middleware/errorHandler");
 const emailService = require("../services/email.service");
+const { getSettings } = require("../services/platformSettings.service");
 
 /**
  * Helper: Generate JWT Token
@@ -72,6 +73,11 @@ const sendTokenResponse = (user, statusCode, res, message) => {
  */
 const register = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
+  const settings = await getSettings();
+
+  if (!settings.allowRegistration) {
+    throw new AppError("New registrations are currently disabled", 403);
+  }
   
   // ============ VALIDATION ============
   if (!name || !email || !password) {
@@ -191,6 +197,7 @@ const verifyOTP = asyncHandler(async (req, res) => {
  */
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  const settings = await getSettings();
   
   // ============ VALIDATION ============
   if (!email || !password) {
@@ -208,7 +215,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   // ============ CHECK ACCOUNT STATUS ============
-  if (!user.isVerified) {
+  if (settings.requireEmailVerification && !user.isVerified) {
     throw new AppError("Please verify your email first", 403);
   }
   

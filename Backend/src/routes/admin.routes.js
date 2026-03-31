@@ -10,6 +10,10 @@ router.post("/login", admin.adminLogin);
 
 router.use(protect, isAdmin);
 
+// platform settings
+router.get("/settings", admin.getPlatformSettings);
+router.put("/settings", admin.updatePlatformSettings);
+
 // dashboard
 router.get("/dashboard", admin.getDashboard);
 

@@ -2,6 +2,7 @@ const Task = require('../models/Task');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 const streakService = require('../services/streak.service');
 const badgeService = require('../services/badge.service');
+const { getSettings } = require('../services/platformSettings.service');
 const { getStartOfDay, getNextDay, getDateRange } = require('../utils/date.utils');
 
 // Get today's tasks
@@ -49,6 +50,17 @@ exports.createTask = asyncHandler(async (req, res) => {
   const { title, description, category, priority, estimatedTime, date } = req.body;
 
   const taskDate = getStartOfDay(date ? new Date(date) : new Date());
+  const settings = await getSettings();
+  const dayEnd = getNextDay(taskDate);
+
+  const existingTaskCount = await Task.countDocuments({
+    userId: req.user.id,
+    date: { $gte: taskDate, $lt: dayEnd },
+  });
+
+  if (existingTaskCount >= settings.maxTasksPerDay) {
+    throw new AppError(`Daily task limit reached. Maximum ${settings.maxTasksPerDay} tasks are allowed per day.`, 400);
+  }
 
   const task = await Task.create({
     userId: req.user.id,
@@ -93,6 +105,18 @@ exports.updateTask = asyncHandler(async (req, res) => {
   if (actualTime !== undefined) updateData.actualTime = actualTime;
   if (date !== undefined) {
     updateData.date = getStartOfDay(new Date(date));
+
+    const settings = await getSettings();
+    const nextDay = getNextDay(updateData.date);
+    const existingTaskCount = await Task.countDocuments({
+      userId: req.user.id,
+      _id: { $ne: id },
+      date: { $gte: updateData.date, $lt: nextDay },
+    });
+
+    if (existingTaskCount >= settings.maxTasksPerDay) {
+      throw new AppError(`Daily task limit reached. Maximum ${settings.maxTasksPerDay} tasks are allowed per day.`, 400);
+    }
   }
 
   task = await Task.findByIdAndUpdate(id, updateData, {

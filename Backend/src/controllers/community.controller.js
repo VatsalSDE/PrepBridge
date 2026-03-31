@@ -5,6 +5,7 @@ const PostBookmark = require('../models/PostBookmark');
 const PostReport = require('../models/PostReport');
 const { AppError, asyncHandler } = require('../middleware/errorHandler');
 const anonymousService = require('../services/anonymous.service');
+const { getSettings } = require('../services/platformSettings.service');
 const createSocketEmitters = require('../sockets/community.socket');
 
 const enrichPostsForUser = async (posts, userId) => {
@@ -331,6 +332,11 @@ exports.deleteComment = asyncHandler(async (req, res) => {
 exports.reportPost = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { reason, description } = req.body || {};
+  const settings = await getSettings();
+
+  if (!settings.communityModeration) {
+    throw new AppError('Community moderation is currently disabled', 403);
+  }
 
   const post = await CommunityPost.findById(id);
   if (!post) {

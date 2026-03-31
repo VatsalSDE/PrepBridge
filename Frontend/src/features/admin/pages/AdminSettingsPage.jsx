@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Settings, Bell, Shield, Database, Mail, Save, RefreshCw,
-  Download, Upload, AlertTriangle, CheckCircle2
+  Settings, Shield, Database, Save, RefreshCw,
+  Download, Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,43 +10,75 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { containerVariants, itemVariants } from '@/utils/animations';
 import { toast } from 'sonner';
+import adminService from '@/services/adminService';
 
 const DEFAULT_SETTINGS = {
   maintenanceMode: false,
   allowRegistration: true,
-  emailNotifications: true,
   communityModeration: true,
-  autoApproveUsers: true,
   requireEmailVerification: true,
   maxTasksPerDay: 20,
-  streakResetTime: '00:00',
 };
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const fileInputRef = useRef(null);
 
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await adminService.getSettings();
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...(response?.data || {}),
+        });
+      } catch (error) {
+        toast.error(error.message || 'Failed to load settings');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
+
   const handleSave = async () => {
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSaving(false);
-    toast.success('Settings saved successfully!');
+    try {
+      setIsSaving(true);
+      const payload = {
+        maintenanceMode: Boolean(settings.maintenanceMode),
+        allowRegistration: Boolean(settings.allowRegistration),
+        requireEmailVerification: Boolean(settings.requireEmailVerification),
+        communityModeration: Boolean(settings.communityModeration),
+        maxTasksPerDay: Number(settings.maxTasksPerDay),
+      };
+      const response = await adminService.updateSettings(payload);
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        ...(response?.data || payload),
+      });
+      toast.success('Settings saved successfully!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleExportData = () => {
-    toast.success('Data export started. You will receive an email when ready.');
+    const blob = new Blob([JSON.stringify({ settings }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'prepbridge-admin-settings.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success('Settings exported successfully');
   };
 
   const handleImportData = () => {
@@ -68,7 +100,11 @@ export default function AdminSettingsPage() {
 
       setSettings((prev) => ({
         ...prev,
-        ...nextSettings,
+        maintenanceMode: Boolean(nextSettings.maintenanceMode ?? prev.maintenanceMode),
+        allowRegistration: Boolean(nextSettings.allowRegistration ?? prev.allowRegistration),
+        requireEmailVerification: Boolean(nextSettings.requireEmailVerification ?? prev.requireEmailVerification),
+        communityModeration: Boolean(nextSettings.communityModeration ?? prev.communityModeration),
+        maxTasksPerDay: Number(nextSettings.maxTasksPerDay ?? prev.maxTasksPerDay),
       }));
       toast.success('Settings imported successfully');
     } catch (error) {
@@ -81,6 +117,14 @@ export default function AdminSettingsPage() {
   const handleClearCache = () => {
     toast.success('Cache cleared successfully!');
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center text-muted-foreground">
+        Loading settings...
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -137,15 +181,9 @@ export default function AdminSettingsPage() {
                 <Input
                   type="number"
                   value={settings.maxTasksPerDay}
-                  onChange={(e) => setSettings({ ...settings, maxTasksPerDay: parseInt(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Streak Reset Time (UTC)</Label>
-                <Input
-                  type="time"
-                  value={settings.streakResetTime}
-                  onChange={(e) => setSettings({ ...settings, streakResetTime: e.target.value })}
+                  min={1}
+                  max={100}
+                  onChange={(e) => setSettings({ ...settings, maxTasksPerDay: Math.max(1, Number(e.target.value || 1)) })}
                 />
               </div>
             </CardContent>
@@ -163,17 +201,6 @@ export default function AdminSettingsPage() {
               <CardDescription>User authentication settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Auto-Approve New Users</Label>
-                  <p className="text-sm text-muted-foreground">Skip manual approval for signups</p>
-                </div>
-                <Switch
-                  checked={settings.autoApproveUsers}
-                  onCheckedChange={(checked) => setSettings({ ...settings, autoApproveUsers: checked })}
-                />
-              </div>
-              <Separator />
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Require Email Verification</Label>
@@ -194,35 +221,6 @@ export default function AdminSettingsPage() {
                   checked={settings.communityModeration}
                   onCheckedChange={(checked) => setSettings({ ...settings, communityModeration: checked })}
                 />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Notification Settings */}
-        <motion.div variants={itemVariants}>
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="w-5 h-5" />
-                Notifications
-              </CardTitle>
-              <CardDescription>Email and push notification settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Send email alerts to admin</p>
-                </div>
-                <Switch
-                  checked={settings.emailNotifications}
-                  onCheckedChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Admin Email</Label>
-                <Input type="email" placeholder="admin@prepbridge.com" />
               </div>
             </CardContent>
           </Card>

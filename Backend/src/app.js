@@ -10,6 +10,7 @@ const cors = require("cors");
 
 // Import routes
 const mountRoutes = require("./routes");
+const { maintenanceGuard } = require("./middleware/maintenance.middleware");
 
 // Import error handling middleware
 const { errorHandler, notFound } = require("./middleware/errorHandler");
@@ -124,6 +125,8 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+app.use(maintenanceGuard);
 
 
 // ================================

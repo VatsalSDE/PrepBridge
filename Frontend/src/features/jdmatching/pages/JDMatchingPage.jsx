@@ -75,6 +75,26 @@ const getDifficultyStyle = (difficulty) => {
   return 'bg-green-500/10 text-green-400 border-green-500/20';
 };
 
+// Browsers (especially on Windows, where the MIME type comes from the registry)
+// often report an empty `file.type` for .pdf/.docx. Detect by extension as well,
+// otherwise a valid resume silently falls through to the "pasted text" path.
+const getResumeKind = (file) => {
+  if (!file) return null;
+  const name = (file.name || '').toLowerCase();
+  const type = file.type || '';
+
+  if (type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+  if (
+    type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    type === 'application/msword' ||
+    name.endsWith('.docx') ||
+    name.endsWith('.doc')
+  ) return 'word';
+  if (type === 'text/plain' || name.endsWith('.txt')) return 'txt';
+
+  return null;
+};
+
 const formatDateTime = (value) => {
   if (!value) return 'Just now';
   return new Date(value).toLocaleString('en-IN', {
@@ -201,22 +221,16 @@ export default function JDMatchingPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const lowerName = file.name.toLowerCase();
-    const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
-    const isWord = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      || file.type === 'application/msword'
-      || lowerName.endsWith('.docx')
-      || lowerName.endsWith('.doc');
-    const isTxt = file.type === 'text/plain' || lowerName.endsWith('.txt');
+    const kind = getResumeKind(file);
 
-    if (!isPdf && !isWord && !isTxt) {
+    if (!kind) {
       toast.error('Please upload a PDF, Word (.docx), or TXT file');
       return;
     }
 
     setResumeFile(file);
 
-    if (isTxt) {
+    if (kind === 'txt') {
       try {
         const content = await file.text();
         setResumeText(content);
@@ -238,7 +252,10 @@ export default function JDMatchingPage() {
       return;
     }
 
-    if (!resumeFile && !resumeText.trim()) {
+    const pastedText = resumeText.trim();
+    const resumeKind = getResumeKind(resumeFile);
+
+    if (!resumeFile && !pastedText) {
       toast.error('Upload a resume file or paste resume text');
       return;
     }
@@ -246,19 +263,18 @@ export default function JDMatchingPage() {
     toast.loading('Analyzing JD match...', { id: 'jd-analyze' });
 
     try {
-      if (resumeFile && (
-        resumeFile.type === 'application/pdf' ||
-        resumeFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-        resumeFile.type === 'application/msword'
-      )) {
-        // Send as form-data for PDF/Word parsing
+      if (resumeKind === 'pdf' || resumeKind === 'word') {
+        // Send as form-data for PDF/Word parsing.
+        // Pasted text rides along so the backend can fall back to it when the
+        // document has no extractable text (e.g. a scanned/image-only PDF).
         const formData = new FormData();
         formData.append('companyId', selectedCompanyId);
         formData.append('resume', resumeFile);
+        if (pastedText) formData.append('resumeText', pastedText);
         await analyzeJD(formData, true); // true = isFormData
       } else {
-        // Send as JSON for pasted text
-        await analyzeJD({ companyId: selectedCompanyId, resumeText: resumeText.trim() });
+        // Send as JSON for pasted text (or a .txt file already read into state)
+        await analyzeJD({ companyId: selectedCompanyId, resumeText: pastedText });
       }
 
       await Promise.all([

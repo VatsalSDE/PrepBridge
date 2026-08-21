@@ -152,17 +152,29 @@ exports.analyzeJD = asyncHandler(async (req, res) => {
     resumeText: bodyResumeText = "",
   } = req.body;
 
-  // Step 1 → Extract resume text from uploaded file OR use pasted text
-  let resumeText = bodyResumeText;
+  // Step 1 → Extract resume text from uploaded file, falling back to pasted text
+  let resumeText = String(bodyResumeText || "").trim();
+
   if (req.file) {
+    let extractedText = "";
     try {
-      resumeText = await extractTextFromFile(req.file);
+      extractedText = (await extractTextFromFile(req.file)) || "";
     } catch (err) {
       throw new AppError(err.message || "Failed to extract text from file", 400);
     }
+
+    if (extractedText.trim()) {
+      resumeText = extractedText.trim();
+    } else if (!resumeText) {
+      // Scanned / image-only PDFs parse successfully but yield no text.
+      throw new AppError(
+        `No readable text found in "${req.file.originalname}". It may be a scanned or image-only file — paste your resume text instead.`,
+        400
+      );
+    }
   }
 
-  if (!resumeText.trim()) {
+  if (!resumeText) {
     throw new AppError("Resume is required — upload a PDF/Word file or paste text", 400);
   }
 

@@ -4,9 +4,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = "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"
+# Load API key from environment (recommended) or .env file
+api_key = os.getenv("GROQ_API_KEY")
 if not api_key:
-    raise ValueError("GROQ_API_KEY not found!")
+    raise ValueError("GROQ_API_KEY not set. Please set the GROQ_API_KEY environment variable or add it to your .env file.")
 
 client = Groq(api_key=api_key)
 print("✅ Groq model ready!")
